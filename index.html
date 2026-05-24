@@ -86,6 +86,9 @@ th{background:#f8fafc;font-weight:700;color:#334155;position:sticky;top:0;z-inde
 tbody tr:hover{background:#f8fafc;}
 tbody tr:last-child td{border-bottom:none;}
 .t-mut{color:var(--mut);}
+.t-r{text-align:right;}
+.neg-amt{color:var(--red);font-weight:700;}
+.sec-title{margin-top:22px;}
 
 /* Matrix table (job tabs) */
 .mx th.grp{text-align:center;background:#eef2f6;border-left:2px solid var(--line);}
@@ -269,9 +272,8 @@ const LS_KEY="conveyDashboard_v1";
 /* ============================ STATE ============================ */
 let DB={jobs:[],cloud:{url:"",key:"",enabled:false}};
 let STATE={view:"dashboard",editId:null,filters:{}};
-let formVax={combined:[{date:"",expiry:""}],lepto:[{date:"",expiry:""}],rabies:[{date:"",expiry:""}]};
-let formExtra={micro:"",blood:"",cond:"china"};
-let formBreed={sel:"",extra:""};
+let formPets=[];
+let formCond="china";
 let formCosts=[];
 let formCountry={origin:{sel:"",extra:""},dest:{sel:"",extra:""}};
 
@@ -285,9 +287,27 @@ function daysBetween(a,b){if(!a||!b)return null;return Math.round((a-b)/86400000
 function toBE(s){const d=parseD(s);if(!d)return"";return d.getUTCDate()+" "+TH_MON[d.getUTCMonth()]+" "+(d.getUTCFullYear()+543);}
 function fmtCE(s){const d=parseD(s);if(!d)return"-";return d.getUTCDate()+" "+TH_MON[d.getUTCMonth()]+" "+d.getUTCFullYear();}
 function breedDisplay(p){if(!p)return"";if(p.breedMix)return (p.breed||"")+" — "+p.breedMix;return p.breed||"";}
+function petsShort(job){const ps=job.pets||[];if(!ps.length)return "-";
+  return (ps[0].name||"(ไม่มีชื่อ)")+(ps.length>1?" +"+(ps.length-1):"");}
+function petsCell(job){
+  const ps=job.pets||[];
+  if(!ps.length)return '<span class="t-mut">-</span>';
+  const first=esc(ps[0].name||"(ไม่มีชื่อ)");
+  if(ps.length===1)return '<b>'+first+'</b><div class="mini">'+esc(breedDisplay(ps[0]))+'</div>';
+  return '<b>'+first+'</b> <span class="badge bg-type">+'+(ps.length-1)+'</span><div class="mini">รวม '+ps.length+' ตัว</div>';
+}
 function money(n){n=Number(n)||0;return n.toLocaleString("en-US",{maximumFractionDigits:2})+" ฿";}
 function jobCostTotal(j){let t=0;(j.costs||[]).forEach(c=>t+=Number(c.amount)||0);return t;}
 function jobProfit(j){return (Number(j.sellPrice)||0)-jobCostTotal(j);}
+function presetRange(p){
+  const n=new Date();const pad=x=>String(x).padStart(2,"0");
+  function mr(y,m){const d=new Date(y,m,1),last=new Date(y,m+1,0);
+    return[d.getFullYear()+"-"+pad(d.getMonth()+1)+"-01",last.getFullYear()+"-"+pad(last.getMonth()+1)+"-"+pad(last.getDate())];}
+  if(p==="thismonth")return mr(n.getFullYear(),n.getMonth());
+  if(p==="lastmonth")return mr(n.getFullYear(),n.getMonth()-1);
+  if(p==="thisyear")return[n.getFullYear()+"-01-01",n.getFullYear()+"-12-31"];
+  return["",""];
+}
 function toast(msg,type){const t=document.createElement("div");t.className="toast "+(type||"");t.textContent=msg;
   $("#toast").appendChild(t);setTimeout(()=>{t.style.opacity="0";t.style.transition=".3s";setTimeout(()=>t.remove(),320);},2600);}
 
@@ -298,6 +318,15 @@ function loadLocal(){
     DB.jobs=Array.isArray(d.jobs)?d.jobs:[];
     DB.cloud=Object.assign({url:"",key:"",enabled:false},d.cloud||{});}}
   catch(e){console.warn("load error",e);}
+  DB.jobs.forEach(migrateJobPets);
+}
+function migrateJobPets(job){
+  if(!job||Array.isArray(job.pets))return;
+  const p=job.pet||{};
+  job.pets=[{name:p.name||"",microchip:p.microchip||"",color:p.color||"",sex:p.sex||"",
+    dob:p.dob||"",species:p.species||"",breed:p.breed||"",breedMix:p.breedMix||"",
+    vax:job.vax||{combined:[],lepto:[],rabies:[]},
+    microchipDate:job.microchipDate||"",bloodDate:job.bloodDate||""}];
 }
 function getJob(id){return DB.jobs.find(j=>j.id===id);}
 function nextJobNo(){
@@ -363,7 +392,7 @@ async function cloudPull(silent){
   try{const r=await fetch(cloudBase()+"?select=id,data,updated_at",{headers:cloudHeaders()});
     if(!r.ok)throw new Error("HTTP "+r.status);
     const rows=await r.json();let added=0,updated=0;
-    rows.forEach(row=>{const j=row.data;if(!j||!j.id)return;
+    rows.forEach(row=>{const j=row.data;if(!j||!j.id)return;migrateJobPets(j);
       const ex=getJob(j.id);
       if(!ex){DB.jobs.push(j);added++;}
       else if((row.updated_at||"")>(ex.updatedAt||"")){const i=DB.jobs.findIndex(x=>x.id===j.id);DB.jobs[i]=j;updated++;}});
@@ -383,10 +412,10 @@ async function cloudPush(){
 
 /* ============================ VACCINE VALIDATION ============================ */
 function ageDaysAt(dob,d){const D=parseD(d),B=parseD(dob);if(!D||!B)return null;return daysBetween(D,B);}
-function validateVaccines(j){
-  const dir=j.vaccineDir||"";const cond=j.exportCond||"china";
-  const dob=j.pet&&j.pet.dob;const imp=parseD(j.travelDate);
-  const vax=j.vax||{combined:[],lepto:[],rabies:[]};
+function validatePet(pet,dir,cond,travelDate){
+  pet=pet||{};dir=dir||"";cond=cond||"china";
+  const dob=pet.dob;const imp=parseD(travelDate);
+  const vax=pet.vax||{combined:[],lepto:[],rabies:[]};
   const res={rows:{combined:[],lepto:[],rabies:[]},micro:null,blood:null,extra:[]};
 
   ["combined","lepto"].forEach(grp=>{
@@ -433,10 +462,10 @@ function validateVaccines(j){
 
   if(dir==="export"){
     if(cond==="general"){
-      res.micro=j.microchipDate?{ok:null,msg:"บันทึกแล้ว (ไม่ตรวจเงื่อนไข)"}:{ok:null,msg:"ยังไม่ระบุวันที่ฝังไมโครชิพ"};
-      res.blood=j.bloodDate?{ok:null,msg:"บันทึกแล้ว (ไม่ตรวจเงื่อนไข)"}:{ok:null,msg:"ยังไม่ระบุวันที่เจาะเลือด"};
+      res.micro=pet.microchipDate?{ok:null,msg:"บันทึกแล้ว (ไม่ตรวจเงื่อนไข)"}:{ok:null,msg:"ยังไม่ระบุวันที่ฝังไมโครชิพ"};
+      res.blood=pet.bloodDate?{ok:null,msg:"บันทึกแล้ว (ไม่ตรวจเงื่อนไข)"}:{ok:null,msg:"ยังไม่ระบุวันที่เจาะเลือด"};
     }else{
-      const mc=parseD(j.microchipDate);const r0=parseD(rb[0]&&rb[0].date);
+      const mc=parseD(pet.microchipDate);const r0=parseD(rb[0]&&rb[0].date);
       if(!mc)res.micro={ok:null,msg:"ยังไม่ระบุวันที่ฝังไมโครชิพ"};
       else if(!r0)res.micro={ok:null,msg:"ยังไม่ระบุวัคซีนพิษสุนัขบ้าเข็มแรก"};
       else if(cond==="china"){const ok=daysBetween(mc,r0)<=0;
@@ -444,7 +473,7 @@ function validateVaccines(j){
       else{const ok=daysBetween(mc,r0)>=0;
         res.micro={ok,msg:ok?"ฝังหลัง/วันเดียวกับวัคซีนพิษสุนัขบ้าเข็มแรก ✓":"EU: ไมโครชิพต้องฝังหลังวัคซีนพิษสุนัขบ้าเข็มแรก"};}
 
-      const bd=parseD(j.bloodDate);
+      const bd=parseD(pet.bloodDate);
       if(cond==="china"){
         const r2=parseD(rb[1]&&rb[1].date);
         if(!bd)res.blood={ok:null,msg:"ยังไม่ระบุวันที่เจาะเลือด"};
@@ -464,6 +493,15 @@ function vaxOverall(res){
   Object.values(res.rows).forEach(arr=>arr.forEach(r=>{if(r.ok===false)fail=true;if(r.ok===true)any=true;}));
   [res.micro,res.blood].forEach(r=>{if(r){if(r.ok===false)fail=true;if(r.ok===true)any=true;}});
   res.extra.forEach(r=>{if(r.ok===false)fail=true;});
+  if(fail)return false;if(any)return true;return null;
+}
+function jobVaxOverall(job){
+  if(!job.vaccineDir)return null;
+  if(job.vaccineDir==="export"&&job.exportCond==="general")return "general";
+  const pets=job.pets||[];
+  let any=false,fail=false;
+  pets.forEach(p=>{const o=vaxOverall(validatePet(p,job.vaccineDir,job.exportCond,job.travelDate));
+    if(o===false)fail=true;if(o===true)any=true;});
   if(fail)return false;if(any)return true;return null;
 }
 
@@ -486,6 +524,7 @@ function isClosed(job){
 function renderNav(){
   let h='<div class="nav-sec">หน้าหลัก</div>';
   h+=navItem("dashboard","📊","ภาพรวมทั้งหมด",DB.jobs.length);
+  h+=navItem("finance","💰","ภาพรวมการเงิน",null);
   h+=navItem("new","➕","บันทึกงานใหม่",null);
   h+='<div class="nav-sec">แท็บงานตามประเภท</div>';
   TYPE_ORDER.forEach(k=>{const t=JOB_TYPES[k];const c=DB.jobs.filter(j=>j.jobType===k).length;
@@ -507,6 +546,7 @@ function render(){
   $("#modePill").textContent=DB.cloud.enabled?"☁ Cloud Sync":"💾 Local";
   const v=STATE.view;
   if(v==="dashboard"){setTitle("ภาพรวมทั้งหมด","สรุปสถานะงานทุกประเภทในที่เดียว");renderDashboard();}
+  else if(v==="finance"){setTitle("ภาพรวมการเงิน","สรุปยอดเรียกเก็บ ต้นทุน และกำไรสุทธิ");renderFinanceDashboard();}
   else if(v==="new"){setTitle(STATE.editId?"แก้ไขงาน":"บันทึกงานใหม่","กรอกข้อมูลลูกค้า สัตว์เลี้ยง และวัคซีน");renderForm();}
   else if(v==="settings"){setTitle("ตั้งค่า / สำรองข้อมูล","จัดการการเก็บข้อมูลและ Cloud Sync");renderSettings();}
   else if(v.startsWith("job:")){const k=v.slice(4);const t=JOB_TYPES[k];
@@ -555,7 +595,7 @@ function renderDashboard(){
       h+='<td><b style="color:var(--brand-d)">'+esc(j.jobNo||"-")+'</b></td>';
       h+='<td><span class="badge bg-type">'+t.icon+" "+esc(t.label)+'</span></td>';
       h+='<td><b>'+esc(j.customerName||"-")+'</b><div class="mini">'+esc(j.customerPhone||"")+'</div></td>';
-      h+='<td>'+esc((j.pet&&j.pet.name)||"-")+'<div class="mini">'+esc(breedDisplay(j.pet))+'</div></td>';
+      h+='<td>'+petsCell(j)+'</td>';
       h+='<td>'+esc(j.originCountry||"?")+" → "+esc(j.destCountry||"?")+'</td>';
       h+='<td>'+fmtCE(j.travelDate)+'<div class="mini">'+(toBE(j.travelDate)||"")+'</div></td>';
       h+='<td>'+progressBar(p)+'</td>';
@@ -577,12 +617,98 @@ function renderDashboard(){
 function statCard(cls,lbl,val){return '<div class="stat '+cls+'"><div class="lbl">'+lbl+'</div><div class="val">'+val+'</div></div>';}
 function progressBar(p){return '<div class="pwrap"><div class="pbar"><i style="width:'+p.pct+'%"></i></div><span>'+p.done+'/'+p.total+'</span></div>';}
 function vaxBadge(j){
-  if(!j.vax||!j.vaccineDir)return '<span class="chip-na">—</span>';
-  if(j.vaccineDir==="export"&&j.exportCond==="general")return '<span class="chip-na">— ทั่วไป</span>';
-  const o=vaxOverall(validateVaccines(j));
+  if(!j.vaccineDir)return '<span class="chip-na">—</span>';
+  const o=jobVaxOverall(j);
+  if(o==="general")return '<span class="chip-na">— ทั่วไป</span>';
   if(o===true)return '<span class="chip-ok">✓ ผ่าน</span>';
   if(o===false)return '<span class="chip-no">✗ ไม่ผ่าน</span>';
   return '<span class="chip-na">— รอข้อมูล</span>';
+}
+
+/* ============================ RENDER: FINANCE DASHBOARD ============================ */
+function fStat(cls,lbl,valStr,neg){
+  return '<div class="stat '+cls+'"><div class="lbl">'+esc(lbl)+'</div>'+
+    '<div class="val" style="font-size:22px'+(neg?";color:var(--red)":"")+'">'+valStr+'</div></div>';
+}
+function renderFinanceDashboard(){
+  const f=STATE.filters;
+  let h='<div class="filters">';
+  h+=fldInput("ค้นหาชื่อลูกค้า","f_name","text",f.f_name,"พิมพ์ชื่อ...");
+  h+=fldSelect("ประเภทงาน","f_type",[["","ทุกประเภท"]].concat(TYPE_ORDER.map(k=>[k,JOB_TYPES[k].label])),f.f_type);
+  h+=fldSelect("กรองตามวันที่","f_datefield",[["travel","วันเดินทาง"],["record","วันที่บันทึกงาน"]],f.f_datefield||"travel");
+  h+=fldInput("ตั้งแต่วันที่","f_from","date",f.f_from);
+  h+=fldInput("ถึงวันที่","f_to","date",f.f_to);
+  h+=fldSelect("สถานะเงิน","f_paid",[["","ทั้งหมด"],["paid","จ่ายแล้ว"],["unpaid","ค้างจ่าย"]],f.f_paid);
+  h+='<button class="btn sm" data-act="clearfilter">ล้างตัวกรอง</button>';
+  h+='</div>';
+  h+='<div style="display:flex;gap:7px;flex-wrap:wrap;margin:-6px 0 16px;align-items:center">'+
+     '<span class="mini">ช่วงเวลาด่วน:</span>'+
+     '<button class="btn sm" data-act="finpreset" data-preset="thismonth">เดือนนี้</button>'+
+     '<button class="btn sm" data-act="finpreset" data-preset="lastmonth">เดือนที่แล้ว</button>'+
+     '<button class="btn sm" data-act="finpreset" data-preset="thisyear">ปีนี้</button>'+
+     '<button class="btn sm" data-act="finpreset" data-preset="all">ทั้งหมด</button></div>';
+
+  const list=applyFilters(DB.jobs,f);
+  let billed=0,cost=0,paidAmt=0,unpaidAmt=0;
+  list.forEach(j=>{const s=Number(j.sellPrice)||0,c=jobCostTotal(j);billed+=s;cost+=c;if(j.paid)paidAmt+=s;else unpaidAmt+=s;});
+  const profit=billed-cost;
+
+  h+='<div class="stat-grid">';
+  h+=statCard("b1","จำนวนงาน",list.length);
+  h+=fStat("b2","ยอดเรียกเก็บลูกค้า",money(billed));
+  h+=fStat("b4","ยอดต้นทุนรวม",money(cost));
+  h+=fStat("b3","กำไรสุทธิ",money(profit),profit<0);
+  h+=fStat("b3","เก็บเงินแล้ว",money(paidAmt));
+  h+=fStat("b4","ค้างเก็บเงิน",money(unpaidAmt));
+  h+='</div>';
+
+  /* by job type */
+  h+='<div class="sec-title">📊 สรุปตามประเภทงาน</div>';
+  h+='<div class="tbl-wrap"><table><thead><tr><th>ประเภทงาน</th><th>จำนวนงาน</th>'+
+     '<th class="t-r">ยอดเรียกเก็บ</th><th class="t-r">ต้นทุน</th><th class="t-r">กำไรสุทธิ</th></tr></thead><tbody>';
+  let anyType=false;
+  TYPE_ORDER.forEach(k=>{
+    const sub=list.filter(j=>j.jobType===k);if(!sub.length)return;anyType=true;
+    let b=0,c=0;sub.forEach(j=>{b+=Number(j.sellPrice)||0;c+=jobCostTotal(j);});
+    h+='<tr><td><span class="badge bg-type">'+JOB_TYPES[k].icon+" "+esc(JOB_TYPES[k].label)+'</span></td>'+
+       '<td>'+sub.length+'</td><td class="t-r">'+money(b)+'</td><td class="t-r">'+money(c)+'</td>'+
+       '<td class="t-r '+((b-c)<0?"neg-amt":"")+'">'+money(b-c)+'</td></tr>';
+  });
+  if(!anyType)h+='<tr><td colspan="5" class="t-mut">ไม่มีข้อมูล</td></tr>';
+  h+='</tbody></table></div>';
+
+  /* cost by category */
+  const catMap={};
+  list.forEach(j=>(j.costs||[]).forEach(c=>{const k=c.cat||"(ไม่ระบุหมวด)";
+    if(!catMap[k])catMap[k]={n:0,sum:0};catMap[k].n++;catMap[k].sum+=Number(c.amount)||0;}));
+  const cats=Object.keys(catMap).sort((a,b)=>catMap[b].sum-catMap[a].sum);
+  h+='<div class="sec-title">💸 สรุปต้นทุนตามหมวด</div>';
+  h+='<div class="tbl-wrap"><table><thead><tr><th>รายการต้นทุน</th><th>จำนวนครั้ง</th><th class="t-r">ยอดรวม</th></tr></thead><tbody>';
+  if(!cats.length)h+='<tr><td colspan="3" class="t-mut">ไม่มีข้อมูลต้นทุน</td></tr>';
+  cats.forEach(k=>{h+='<tr><td>'+esc(k)+'</td><td>'+catMap[k].n+'</td><td class="t-r">'+money(catMap[k].sum)+'</td></tr>';});
+  h+='</tbody></table></div>';
+
+  /* detail */
+  h+='<div class="sec-title">📋 รายละเอียดรายงาน ('+list.length+' งาน)</div>';
+  const sorted=list.slice().sort((a,b)=>(b.travelDate||"").localeCompare(a.travelDate||""));
+  h+='<div class="tbl-wrap"><table><thead><tr><th>เลขที่งาน</th><th>ลูกค้า</th><th>ประเภท</th><th>วันเดินทาง</th>'+
+     '<th class="t-r">ยอดเรียกเก็บ</th><th class="t-r">ต้นทุน</th><th class="t-r">กำไร</th><th>สถานะเงิน</th><th></th></tr></thead><tbody>';
+  if(!sorted.length)h+='<tr><td colspan="9" class="t-mut">ไม่มีงานที่ตรงเงื่อนไข</td></tr>';
+  sorted.forEach(j=>{
+    const s=Number(j.sellPrice)||0,c=jobCostTotal(j),pr=s-c;const t=JOB_TYPES[j.jobType]||{icon:"",label:j.jobType};
+    h+='<tr><td><b style="color:var(--brand-d)">'+esc(j.jobNo||"-")+'</b></td>'+
+       '<td>'+esc(j.customerName||"-")+'</td>'+
+       '<td><span class="badge bg-type">'+t.icon+" "+esc(t.label)+'</span></td>'+
+       '<td>'+fmtCE(j.travelDate)+'</td>'+
+       '<td class="t-r">'+money(s)+'</td><td class="t-r">'+money(c)+'</td>'+
+       '<td class="t-r '+(pr<0?"neg-amt":"")+'">'+money(pr)+'</td>'+
+       '<td>'+(j.paid?'<span class="badge bg-paid">จ่ายแล้ว</span>':'<span class="badge bg-unpaid">ค้างจ่าย</span>')+'</td>'+
+       '<td><div class="row-actions">'+
+       '<button class="btn sm ghost" data-act="pdf" data-id="'+j.id+'" title="สร้างรายงาน PDF">🖨</button>'+
+       '<button class="btn sm ghost" data-act="edit" data-id="'+j.id+'" title="แก้ไข">✏️</button></div></td></tr>';
+  });
+  h+='</tbody></table></div>';
+  $("#content").innerHTML=h;
 }
 
 /* ============================ FILTERS ============================ */
@@ -650,7 +776,7 @@ function renderJobTab(typeKey){
     h+='<tr>';
     h+='<td class="sticky-l"><div class="mini" style="color:var(--brand-d);font-weight:700">'+esc(j.jobNo||"-")+'</div>'+
        '<b>'+esc(j.customerName||"-")+'</b>'+
-       '<div class="mini">🐾 '+esc((j.pet&&j.pet.name)||"-")+' • '+esc(j.originCountry||"?")+"→"+esc(j.destCountry||"?")+'</div></td>';
+       '<div class="mini">🐾 '+esc(petsShort(j))+' • '+esc(j.originCountry||"?")+"→"+esc(j.destCountry||"?")+'</div></td>';
     h+='<td>'+fmtCE(j.travelDate)+'<div class="mini">'+(toBE(j.travelDate)||"")+'</div></td>';
     h+='<td><button class="btn sm '+(j.paid?"":"")+'" data-act="paid" data-id="'+j.id+'">'+
        (j.paid?'<span class="badge bg-paid">จ่ายแล้ว</span>':'<span class="badge bg-unpaid">ค้างจ่าย</span>')+'</button></td>';
@@ -679,21 +805,12 @@ function statusCell(job,kind,idx,extra){
 function renderForm(){
   const editing=STATE.editId?getJob(STATE.editId):null;
   const j=editing||{};
-  const pet=j.pet||{};
-  if(editing&&editing.vax){formVax={
-    combined:(editing.vax.combined||[]).map(x=>({date:x.date||"",expiry:x.expiry||""})),
-    lepto:(editing.vax.lepto||[]).map(x=>({date:x.date||"",expiry:x.expiry||""})),
-    rabies:(editing.vax.rabies||[]).map(x=>({date:x.date||"",expiry:x.expiry||""}))};
-    ["combined","lepto","rabies"].forEach(g=>{if(!formVax[g].length)formVax[g]=[{date:"",expiry:""}];});
-  }else if(!editing){formVax={combined:[{date:"",expiry:""}],lepto:[{date:"",expiry:""}],rabies:[{date:"",expiry:""}]};}
-
   const initType=j.jobType||TYPE_ORDER[0];
   const dir=j.vaccineDir||JOB_TYPES[initType].dir||"";
-  formExtra={micro:j.microchipDate||"",blood:j.bloodDate||"",cond:j.exportCond||"china"};
-  (function(){var sp0=pet.species||"",l0=sp0==="สุนัข"?DOG_BREEDS:sp0==="แมว"?CAT_BREEDS:[];
-    if(pet.breedMix){formBreed={sel:MIXED_BREED,extra:pet.breedMix};}
-    else if(pet.breed){formBreed=(!sp0||l0.indexOf(pet.breed)>=0)?{sel:pet.breed,extra:""}:{sel:OTHER_BREED,extra:pet.breed};}
-    else{formBreed={sel:"",extra:""};}})();
+  formCond=j.exportCond||"china";
+  if(editing&&Array.isArray(editing.pets)&&editing.pets.length){
+    formPets=editing.pets.map(clonePetToForm);
+  }else{formPets=[blankFormPet()];}
   formCosts=(j.costs||[]).map(c=>({cat:c.cat||"",amount:(c.amount==null||c.amount==="")?"":String(c.amount)}));
   ["origin","dest"].forEach(w=>{const v=(w==="origin"?j.originCountry:j.destCountry)||"";
     formCountry[w]=!v?{sel:"",extra:""}:(COUNTRIES.indexOf(v)>=0?{sel:v,extra:""}:{sel:OTHER_COUNTRY,extra:v});});
@@ -725,26 +842,13 @@ function renderForm(){
     '<div class="mini" style="margin-top:1px">คีย์งานย้อนหลังให้แก้วันที่นี้เป็นวันที่ทำงานจริง</div></div>';
   h+='</div></div>';
 
-  /* pet */
-  h+='<div class="form-card"><h3>🐾 รายละเอียดสัตว์เลี้ยง</h3><div class="form-grid">';
-  h+=field("ชื่อสัตว์เลี้ยง","f-pname","text",pet.name);
-  h+=field("หมายเลขไมโครชิพ","f-pchip","text",pet.microchip);
-  h+=field("สี","f-pcolor","text",pet.color);
-  h+='<div class="f"><label>เพศ</label><select id="f-psex">'+
-    ["","ผู้","เมีย"].map(o=>'<option'+(pet.sex===o?" selected":"")+'>'+o+'</option>').join("")+'</select></div>';
-  h+='<div class="f"><label>วันเดือนปีเกิด (ค.ศ.)</label>'+
-    '<input type="date" id="f-pdob" value="'+esc(pet.dob||"")+'" data-act="vaxctx"><div class="be" id="be-pdob"></div></div>';
-  h+='<div class="f"><label>ประเภท</label><select id="f-pspecies" data-act="speciessel">'+
-    ["","สุนัข","แมว"].map(o=>'<option value="'+o+'"'+(pet.species===o?" selected":"")+'>'+(o||"— เลือกประเภท —")+'</option>').join("")+'</select></div>';
-  h+='<div class="f" id="breedBox"></div>';
-  h+='</div></div>';
+  /* vaccine condition (job-level) */
+  h+='<div id="vaxConfig" style="margin-bottom:18px"></div>';
 
-  /* vaccine */
-  h+='<div class="form-card"><h3>💉 รายละเอียดวัคซีน</h3>';
-  h+='<div id="vaxConfig"></div>';
-  h+='<div id="vaxBody"></div>';
-  h+='<div id="vaxResult"></div>';
-  h+='</div>';
+  /* pets (multiple) */
+  h+='<div id="petsBox"></div>';
+  h+='<div style="margin:-4px 0 18px"><button class="btn primary" data-act="addpet">+ เพิ่มสัตว์เลี้ยง</button>'+
+     '<span class="mini" style="margin-left:10px">งานหนึ่งมีสัตว์เลี้ยงได้หลายตัว — วัคซีนแยกของแต่ละตัว</span></div>';
 
   /* finance */
   h+='<div class="form-card"><h3>💰 การเงิน (Finance)</h3>';
@@ -775,12 +879,12 @@ function renderForm(){
   $("#content").innerHTML=h;
   paintCountry("origin");
   paintCountry("dest");
-  paintBreed();
   paintCosts();
   refreshFinance();
   paintVaxConfig();
-  paintVax();
-  refreshVax();
+  renderPets();
+  setBE("be-travel",$("#f-travel")?$("#f-travel").value:"");
+  setBE("be-record",$("#f-record")?$("#f-record").value:"");
   updateTravelLbl();
 }
 function paintCosts(){
@@ -817,37 +921,120 @@ function refreshFinance(){
 }
 function updateTravelLbl(){const tl=$("#travelLbl");if(!tl)return;const d=getDir();
   tl.textContent=d==="import"?"วันเดินทางเข้าประเทศไทย":d==="export"?"วันเดินทางออกจากประเทศไทย":"วันเดินทาง";}
-function syncExtraFromDOM(){const m=$("#f-micro"),b=$("#f-blood"),c=$("#f-cond");
-  if(m)formExtra.micro=m.value;if(b)formExtra.blood=b.value;if(c)formExtra.cond=c.value;}
-function syncBreedFromDOM(){
-  const sel=$("#f-pbreed"),free=$("#f-pbreed-free"),extra=$("#f-pbreed-extra");
-  if(sel)formBreed.sel=sel.value;
-  if(free)formBreed.sel=free.value;
-  if(extra)formBreed.extra=extra.value;
+function blankFormPet(){return{name:"",microchip:"",color:"",sex:"",dob:"",species:"",
+  breedSel:"",breedExtra:"",
+  vax:{combined:[{date:"",expiry:""}],lepto:[{date:"",expiry:""}],rabies:[{date:"",expiry:""}]},
+  micro:"",blood:""};}
+function clonePetToForm(p){
+  p=p||{};
+  const sp=p.species||"";const l0=sp==="สุนัข"?DOG_BREEDS:sp==="แมว"?CAT_BREEDS:[];
+  let bsel="",bextra="";
+  if(p.breedMix){bsel=MIXED_BREED;bextra=p.breedMix;}
+  else if(p.breed){if(!sp||l0.indexOf(p.breed)>=0){bsel=p.breed;}else{bsel=OTHER_BREED;bextra=p.breed;}}
+  const v=p.vax||{};
+  function arr(a){a=(a||[]).map(x=>({date:x.date||"",expiry:x.expiry||""}));return a.length?a:[{date:"",expiry:""}];}
+  return{name:p.name||"",microchip:p.microchip||"",color:p.color||"",sex:p.sex||"",dob:p.dob||"",species:sp,
+    breedSel:bsel,breedExtra:bextra,
+    vax:{combined:arr(v.combined),lepto:arr(v.lepto),rabies:arr(v.rabies)},
+    micro:p.microchipDate||"",blood:p.bloodDate||""};
 }
-function paintBreed(){
-  const box=$("#breedBox");if(!box)return;
-  syncBreedFromDOM();
-  const sp=$("#f-pspecies")?$("#f-pspecies").value:"";
+function syncPetsFromDOM(){
+  formPets.forEach((p,i)=>{
+    const g=id=>document.getElementById("f-p"+i+"-"+id);
+    if(g("name"))p.name=g("name").value;
+    if(g("microchip"))p.microchip=g("microchip").value;
+    if(g("color"))p.color=g("color").value;
+    if(g("sex"))p.sex=g("sex").value;
+    if(g("dob"))p.dob=g("dob").value;
+    if(g("species"))p.species=g("species").value;
+    if(g("breedsel"))p.breedSel=g("breedsel").value;
+    if(g("breedfree"))p.breedSel=g("breedfree").value;
+    if(g("breedextra"))p.breedExtra=g("breedextra").value;
+    if(g("micro"))p.micro=g("micro").value;
+    if(g("blood"))p.blood=g("blood").value;
+  });
+}
+function petField(idx,prop,lbl,type,val){
+  return '<div class="f"><label>'+lbl+'</label><input type="'+type+'" id="f-p'+idx+'-'+prop+'" value="'+esc(val||"")+'" data-act="petin" data-pet="'+idx+'" data-f="'+prop+'"></div>';
+}
+function breedFieldHTML(p,idx){
+  const sp=p.species||"";
   const list=sp==="สุนัข"?DOG_BREEDS:sp==="แมว"?CAT_BREEDS:[];
   let h='<label>สายพันธุ์</label>';
   if(!sp){
-    h+='<input type="text" id="f-pbreed-free" value="'+esc(formBreed.sel)+'" placeholder="เลือกประเภท (สุนัข/แมว) เพื่อดูรายการ หรือพิมพ์เอง">';
+    h+='<input type="text" id="f-p'+idx+'-breedfree" value="'+esc(p.breedSel)+'" data-act="petin" data-pet="'+idx+'" data-f="breedSel" placeholder="เลือกประเภท (สุนัข/แมว) เพื่อดูรายการ หรือพิมพ์เอง">';
   }else{
-    let sel=formBreed.sel;
-    if(!(sel===""||sel===MIXED_BREED||sel===OTHER_BREED||list.indexOf(sel)>=0)){sel="";formBreed.sel="";}
+    let sel=p.breedSel;
+    if(!(sel===""||sel===MIXED_BREED||sel===OTHER_BREED||list.indexOf(sel)>=0)){sel="";p.breedSel="";}
     const opts=[""].concat(list,[MIXED_BREED,OTHER_BREED]);
-    h+='<select id="f-pbreed" data-act="breedsel">'+
+    h+='<select id="f-p'+idx+'-breedsel" data-act="breedsel" data-pet="'+idx+'">'+
       opts.map(o=>'<option value="'+esc(o)+'"'+(o===sel?" selected":"")+'>'+esc(o||"— เลือกสายพันธุ์ —")+'</option>').join("")+'</select>';
     if(sel===MIXED_BREED){
       h+='<label style="margin-top:8px">ระบุสายพันธุ์ที่ผสม</label>'+
-         '<input type="text" id="f-pbreed-extra" value="'+esc(formBreed.extra)+'" placeholder="เช่น Poodle x Pomeranian">';
+         '<input type="text" id="f-p'+idx+'-breedextra" value="'+esc(p.breedExtra)+'" data-act="petin" data-pet="'+idx+'" data-f="breedExtra" placeholder="เช่น Poodle x Pomeranian">';
     }else if(sel===OTHER_BREED){
       h+='<label style="margin-top:8px">ระบุสายพันธุ์ (format: English (ไทย))</label>'+
-         '<input type="text" id="f-pbreed-extra" value="'+esc(formBreed.extra)+'" placeholder="เช่น Spitz (สปิตซ์)">';
+         '<input type="text" id="f-p'+idx+'-breedextra" value="'+esc(p.breedExtra)+'" data-act="petin" data-pet="'+idx+'" data-f="breedExtra" placeholder="เช่น Spitz (สปิตซ์)">';
     }
   }
+  return h;
+}
+function petCardHTML(p,idx,dir){
+  let h='<div class="form-card"><h3>🐾 สัตว์เลี้ยงตัวที่ '+(idx+1)+(p.name?(' — '+esc(p.name)):'')+
+    (formPets.length>1?'<button class="btn sm danger" data-act="rmpet" data-pet="'+idx+'" style="margin-left:auto">✕ ลบตัวนี้</button>':'')+'</h3>';
+  h+='<div class="form-grid">';
+  h+=petField(idx,"name","ชื่อสัตว์เลี้ยง","text",p.name);
+  h+=petField(idx,"microchip","หมายเลขไมโครชิพ","text",p.microchip);
+  h+=petField(idx,"color","สี","text",p.color);
+  h+='<div class="f"><label>เพศ</label><select id="f-p'+idx+'-sex" data-act="petin" data-pet="'+idx+'" data-f="sex">'+
+    ["","ผู้","เมีย"].map(o=>'<option value="'+o+'"'+(p.sex===o?" selected":"")+'>'+(o||"—")+'</option>').join("")+'</select></div>';
+  h+='<div class="f"><label>วันเดือนปีเกิด (ค.ศ.)</label>'+
+    '<input type="date" id="f-p'+idx+'-dob" value="'+esc(p.dob)+'" data-act="petctx" data-pet="'+idx+'" data-f="dob">'+
+    '<div class="be" id="be-p'+idx+'-dob"></div></div>';
+  h+='<div class="f"><label>ประเภท</label><select id="f-p'+idx+'-species" data-act="speciessel" data-pet="'+idx+'">'+
+    ["","สุนัข","แมว"].map(o=>'<option value="'+o+'"'+((p.species||"")===o?" selected":"")+'>'+(o||"— เลือกประเภท —")+'</option>').join("")+'</select></div>';
+  h+='<div class="f">'+breedFieldHTML(p,idx)+'</div>';
+  h+='</div>';
+  h+='<div style="margin-top:14px;font-size:13px;font-weight:700;color:#334155;border-top:1px solid var(--line);padding-top:12px">💉 วัคซีนของ '+(esc(p.name)||("สัตว์เลี้ยงตัวที่ "+(idx+1)))+'</div>';
+  ["combined","lepto","rabies"].forEach(grp=>{
+    h+='<div class="vax-group"><div class="vh"><b>💉 '+VAX_GROUPS[grp]+'</b>'+
+      '<button class="btn sm" data-act="addvax" data-pet="'+idx+'" data-grp="'+grp+'" style="margin-left:auto">+ เพิ่มเข็ม</button></div>';
+    (p.vax[grp]||[]).forEach((v,i)=>{
+      h+='<div class="vax-row">'+
+        '<div class="pin">เข็มที่ '+(i+1)+'</div>'+
+        '<div class="vfld"><label>วันที่ฉีด (ค.ศ.)</label>'+
+          '<input type="date" id="vx-'+idx+'-'+grp+'-'+i+'-date" value="'+esc(v.date)+'" data-act="vaxin" data-pet="'+idx+'" data-grp="'+grp+'" data-i="'+i+'" data-f="date">'+
+          '<div class="be" id="be-'+idx+'-'+grp+'-'+i+'-date"></div></div>'+
+        '<div class="vfld"><label>วันหมดอายุ (ค.ศ.)</label>'+
+          '<input type="date" id="vx-'+idx+'-'+grp+'-'+i+'-expiry" value="'+esc(v.expiry)+'" data-act="vaxin" data-pet="'+idx+'" data-grp="'+grp+'" data-i="'+i+'" data-f="expiry">'+
+          '<div class="be" id="be-'+idx+'-'+grp+'-'+i+'-expiry"></div></div>'+
+        '<div class="vfld"><label>สถานะเงื่อนไข</label><div id="st-'+idx+'-'+grp+'-'+i+'" style="font-size:12px;padding-top:6px"></div></div>'+
+        '<div>'+(i>0?'<button class="vax-rm" data-act="rmvax" data-pet="'+idx+'" data-grp="'+grp+'" data-i="'+i+'" title="ลบเข็มนี้">✕</button>':'')+'</div>'+
+      '</div>';
+    });
+    h+='</div>';
+  });
+  if(dir==="export"){
+    h+='<div class="vax-group"><div class="vh"><b>🔬 ข้อมูลเพิ่มเติม (Export)</b></div><div class="form-grid">'+
+      '<div class="f"><label>วันที่ฝังไมโครชิพ (ค.ศ.)</label>'+
+        '<input type="date" id="f-p'+idx+'-micro" value="'+esc(p.micro)+'" data-act="petctx" data-pet="'+idx+'" data-f="micro">'+
+        '<div class="be" id="be-p'+idx+'-micro"></div></div>'+
+      '<div class="f"><label>วันที่เจาะเลือด (ค.ศ.)</label>'+
+        '<input type="date" id="f-p'+idx+'-blood" value="'+esc(p.blood)+'" data-act="petctx" data-pet="'+idx+'" data-f="blood">'+
+        '<div class="be" id="be-p'+idx+'-blood"></div></div>'+
+      '</div></div>';
+  }
+  h+='<div id="vaxResult-'+idx+'"></div>';
+  h+='</div>';
+  return h;
+}
+function renderPets(){
+  const box=$("#petsBox");if(!box)return;
+  const dir=getDir();
+  let h='';
+  formPets.forEach((p,idx)=>{h+=petCardHTML(p,idx,dir);});
   box.innerHTML=h;
+  formPets.forEach((p,idx)=>refreshPetVax(idx));
 }
 function syncCountryFromDOM(which){
   const sel=$("#f-"+which+"-sel"),extra=$("#f-"+which+"-extra");
@@ -880,7 +1067,7 @@ function field(lbl,id,type,val,req){
   return '<div class="f"><label>'+lbl+r+'</label><input type="'+type+'" id="'+id+'" value="'+esc(val||"")+'"></div>';
 }
 function paintVaxConfig(){
-  syncExtraFromDOM();
+  const cEl=$("#f-cond");if(cEl)formCond=cEl.value;
   const dir=getDir();
   let h='';
   if(!dir){h='<div class="hint">⚠️ เลือก <b>ทิศทางงาน (Import / Export)</b> ด้านบนก่อน เพื่อแสดงเงื่อนไขตรวจวัคซีนที่ถูกต้อง</div>';}
@@ -888,8 +1075,8 @@ function paintVaxConfig(){
     h='<div class="hint" style="background:#eff6ff;border-color:#bfdbfe;color:#1e40af">📥 โหมด <b>Import (นำเข้าไทย)</b> — ตรวจเงื่อนไข: วัคซีนรวม/ฉี่หนู ฉีดตอนอายุ ≥ 60 วัน • วัคซีนพิษสุนัขบ้า ฉีดตอนอายุ ≥ 85 วัน • วัคซีนต้องไม่หมดอายุก่อนวันนำเข้าไทย</div>';
   }
   else if(dir==="export"){
-    const cur=formExtra.cond||"china";
-    h='<div class="f" style="max-width:380px;margin-bottom:12px"><label>เงื่อนไขประเทศปลายทาง (Export)</label>'+
+    const cur=formCond||"china";
+    h='<div class="f" style="max-width:440px"><label>💉 เงื่อนไขประเทศปลายทาง (Export) — ใช้กับสัตว์เลี้ยงทุกตัวในงานนี้</label>'+
       '<select id="f-cond" data-act="vaxctx">'+
       '<option value="china"'+(cur==="china"?" selected":"")+'>🇨🇳 ประเทศจีน (China)</option>'+
       '<option value="eu"'+(cur==="eu"?" selected":"")+'>🇪🇺 EU Countries</option>'+
@@ -900,41 +1087,45 @@ function paintVaxConfig(){
   $("#vaxConfig").innerHTML=h;
 }
 function getDir(){const r=document.querySelector('input[name="dir"]:checked');return r?r.value:"";}
-function getCond(){const s=$("#f-cond");return s?s.value:"china";}
+function getCond(){const s=$("#f-cond");return s?s.value:formCond;}
 
-function paintVax(){
-  syncExtraFromDOM();
-  const dir=getDir();
-  let h='';
+function refreshPetVax(idx){
+  const p=formPets[idx];if(!p)return;
+  setBE("be-p"+idx+"-dob",p.dob);
+  if(document.getElementById("be-p"+idx+"-micro"))setBE("be-p"+idx+"-micro",p.micro);
+  if(document.getElementById("be-p"+idx+"-blood"))setBE("be-p"+idx+"-blood",p.blood);
   ["combined","lepto","rabies"].forEach(grp=>{
-    h+='<div class="vax-group"><div class="vh"><b>💉 '+VAX_GROUPS[grp]+'</b>'+
-      '<button class="btn sm" data-act="addvax" data-grp="'+grp+'" style="margin-left:auto">+ เพิ่มเข็ม</button></div>';
-    formVax[grp].forEach((v,i)=>{
-      h+='<div class="vax-row">'+
-        '<div class="pin">เข็มที่ '+(i+1)+'</div>'+
-        '<div class="vfld"><label>วันที่ฉีด (ค.ศ.)</label>'+
-          '<input type="date" id="vx-'+grp+'-'+i+'-date" value="'+esc(v.date)+'" data-act="vaxin" data-grp="'+grp+'" data-i="'+i+'" data-f="date">'+
-          '<div class="be" id="be-'+grp+'-'+i+'-date"></div></div>'+
-        '<div class="vfld"><label>วันหมดอายุ (ค.ศ.)</label>'+
-          '<input type="date" id="vx-'+grp+'-'+i+'-expiry" value="'+esc(v.expiry)+'" data-act="vaxin" data-grp="'+grp+'" data-i="'+i+'" data-f="expiry">'+
-          '<div class="be" id="be-'+grp+'-'+i+'-expiry"></div></div>'+
-        '<div class="vfld"><label>สถานะเงื่อนไข</label><div id="st-'+grp+'-'+i+'" style="font-size:12px;padding-top:6px"></div></div>'+
-        '<div>'+(i>0?'<button class="vax-rm" data-act="rmvax" data-grp="'+grp+'" data-i="'+i+'" title="ลบเข็มนี้">✕</button>':'')+'</div>'+
-      '</div>';
-    });
-    h+='</div>';
+    (p.vax[grp]||[]).forEach((v,i)=>{setBE("be-"+idx+"-"+grp+"-"+i+"-date",v.date);setBE("be-"+idx+"-"+grp+"-"+i+"-expiry",v.expiry);});
+  });
+  const dir=getDir();const cond=dir==="export"?getCond():"";
+  const travel=$("#f-travel")?$("#f-travel").value:"";
+  const res=validatePet(p,dir,cond,travel);
+  ["combined","lepto","rabies"].forEach(grp=>{
+    res.rows[grp].forEach((r,i)=>{const el=$("#st-"+idx+"-"+grp+"-"+i);if(el)el.innerHTML=stIcon(r);});
+  });
+  let items=[];
+  ["combined","lepto","rabies"].forEach(grp=>{
+    res.rows[grp].forEach((r,i)=>{if(r.ok!=null||r.msg)items.push({label:VAX_GROUPS[grp].split(" (")[0]+" เข็มที่ "+(i+1),r:r});});
   });
   if(dir==="export"){
-    h+='<div class="vax-group"><div class="vh"><b>🔬 ข้อมูลเพิ่มเติม (Export)</b></div><div class="form-grid">'+
-      '<div class="f"><label>วันที่ฝังไมโครชิพ (ค.ศ.)</label>'+
-        '<input type="date" id="f-micro" value="'+esc(formExtra.micro)+'" data-act="vaxctx">'+
-        '<div class="be" id="be-micro"></div></div>'+
-      '<div class="f"><label>วันที่เจาะเลือด (ค.ศ.)</label>'+
-        '<input type="date" id="f-blood" value="'+esc(formExtra.blood)+'" data-act="vaxctx">'+
-        '<div class="be" id="be-blood"></div></div>'+
-      '</div></div>';
+    if(res.micro)items.push({label:"วันที่ฝังไมโครชิพ",r:res.micro});
+    if(res.blood)items.push({label:"วันที่เจาะเลือด",r:res.blood});
+    res.extra.forEach(r=>items.push({label:"เงื่อนไขประเทศ",r:r}));
   }
-  $("#vaxBody").innerHTML=h;
+  const overall=vaxOverall(res);
+  let cls=overall===true?"ok":overall===false?"no":"na";
+  let head=overall===true?"✅ วัคซีนผ่านเงื่อนไขทั้งหมด":overall===false?"❌ วัคซีนยังไม่ผ่านเงื่อนไข — ตรวจสอบรายการด้านล่าง":"⏳ รอข้อมูลครบเพื่อตรวจสอบ";
+  if(dir==="export"&&cond==="general"){cls="na";head="ℹ️ ปลายทางทั่วไป — บันทึกข้อมูลวัคซีนไว้ ไม่ตรวจเงื่อนไขอัตโนมัติ";}
+  if(!dir){cls="na";head="⏳ เลือกทิศทางงาน (Import/Export) ด้านบนก่อนเพื่อตรวจสอบ";}
+  let h='<div class="vax-result '+cls+'"><b>'+head+'</b>';
+  if(items.length){h+='<ul>';items.forEach(it=>{h+='<li>'+stIcon(it.r)+'<span><b>'+esc(it.label)+':</b> '+esc(it.r.msg||"-")+'</span></li>';});h+='</ul>';}
+  h+='</div>';
+  const box=$("#vaxResult-"+idx);if(box)box.innerHTML=h;
+}
+function refreshAllVax(){
+  setBE("be-travel",$("#f-travel")&&$("#f-travel").value);
+  setBE("be-record",$("#f-record")&&$("#f-record").value);
+  formPets.forEach((p,i)=>refreshPetVax(i));
 }
 
 function readFormJob(){
@@ -957,20 +1148,23 @@ function readFormJob(){
   job.sellPrice=parseFloat($("#f-sell")?$("#f-sell").value:"")||0;
   job.costs=formCosts.filter(c=>c.cat||(c.amount!==""&&c.amount!=null)).map(c=>({cat:c.cat,amount:parseFloat(c.amount)||0}));
   job.paidDate=(job.paid&&$("#f-paiddate"))?$("#f-paiddate").value:"";
-  syncBreedFromDOM();
-  let pBreed="",pBreedMix="";
-  if(formBreed.sel===MIXED_BREED){pBreed=MIXED_BREED;pBreedMix=(formBreed.extra||"").trim();}
-  else if(formBreed.sel===OTHER_BREED){pBreed=(formBreed.extra||"").trim();}
-  else{pBreed=(formBreed.sel||"").trim();}
-  job.pet={name:$("#f-pname").value.trim(),microchip:$("#f-pchip").value.trim(),color:$("#f-pcolor").value.trim(),
-    sex:$("#f-psex").value,dob:$("#f-pdob").value,species:$("#f-pspecies").value,breed:pBreed,breedMix:pBreedMix};
-  job.vax={combined:formVax.combined.map(v=>({date:v.date,expiry:v.expiry})),
-    lepto:formVax.lepto.map(v=>({date:v.date,expiry:v.expiry})),
-    rabies:formVax.rabies.map(v=>({date:v.date,expiry:v.expiry}))};
   job.exportCond=dir==="export"?getCond():"";
-  job.microchipDate=dir==="export"&&$("#f-micro")?$("#f-micro").value:"";
-  job.bloodDate=dir==="export"&&$("#f-blood")?$("#f-blood").value:"";
   job.notes=$("#f-notes").value.trim();
+  syncPetsFromDOM();
+  job.pets=formPets.map(p=>{
+    let breed="",breedMix="";
+    if(p.breedSel===MIXED_BREED){breed=MIXED_BREED;breedMix=(p.breedExtra||"").trim();}
+    else if(p.breedSel===OTHER_BREED){breed=(p.breedExtra||"").trim();}
+    else{breed=(p.breedSel||"").trim();}
+    return{name:(p.name||"").trim(),microchip:(p.microchip||"").trim(),color:(p.color||"").trim(),
+      sex:p.sex||"",dob:p.dob||"",species:p.species||"",breed:breed,breedMix:breedMix,
+      vax:{combined:p.vax.combined.map(v=>({date:v.date,expiry:v.expiry})),
+           lepto:p.vax.lepto.map(v=>({date:v.date,expiry:v.expiry})),
+           rabies:p.vax.rabies.map(v=>({date:v.date,expiry:v.expiry}))},
+      microchipDate:dir==="export"?(p.micro||""):"",
+      bloodDate:dir==="export"?(p.blood||""):""};
+  });
+  delete job.pet;delete job.vax;delete job.microchipDate;delete job.bloodDate;
   // checklist init / preserve
   if(!job.checklist||prevType!==jtype){
     job.checklist={docs:{},steps:{}};
@@ -981,49 +1175,7 @@ function readFormJob(){
   return job;
 }
 
-/* live vaccine refresh */
-function refreshVax(){
-  // BE displays
-  setBE("be-travel",$("#f-travel")&&$("#f-travel").value);
-  setBE("be-record",$("#f-record")&&$("#f-record").value);
-  setBE("be-pdob",$("#f-pdob")&&$("#f-pdob").value);
-  if($("#f-micro"))setBE("be-micro",$("#f-micro").value);
-  if($("#f-blood"))setBE("be-blood",$("#f-blood").value);
-  ["combined","lepto","rabies"].forEach(grp=>{
-    formVax[grp].forEach((v,i)=>{setBE("be-"+grp+"-"+i+"-date",v.date);setBE("be-"+grp+"-"+i+"-expiry",v.expiry);});
-  });
-  // build temp job
-  const dir=getDir();
-  const tmp={vaccineDir:dir,exportCond:dir==="export"?getCond():"",
-    pet:{dob:$("#f-pdob")?$("#f-pdob").value:""},
-    travelDate:$("#f-travel")?$("#f-travel").value:"",
-    microchipDate:$("#f-micro")?$("#f-micro").value:"",
-    bloodDate:$("#f-blood")?$("#f-blood").value:"",
-    vax:{combined:formVax.combined,lepto:formVax.lepto,rabies:formVax.rabies}};
-  const res=validateVaccines(tmp);
-  ["combined","lepto","rabies"].forEach(grp=>{
-    res.rows[grp].forEach((r,i)=>{const el=$("#st-"+grp+"-"+i);if(el)el.innerHTML=stIcon(r);});
-  });
-  // result summary
-  let items=[];
-  ["combined","lepto","rabies"].forEach(grp=>{
-    res.rows[grp].forEach((r,i)=>{if(r.ok!=null||r.msg)items.push({label:VAX_GROUPS[grp].split(" (")[0]+" เข็มที่ "+(i+1),r:r});});
-  });
-  if(dir==="export"){
-    if(res.micro)items.push({label:"วันที่ฝังไมโครชิพ",r:res.micro});
-    if(res.blood)items.push({label:"วันที่เจาะเลือด",r:res.blood});
-    res.extra.forEach(r=>items.push({label:"เงื่อนไขประเทศ",r:r}));
-  }
-  const overall=vaxOverall(res);
-  let cls=overall===true?"ok":overall===false?"no":"na";
-  let head=overall===true?"✅ วัคซีนผ่านเงื่อนไขทั้งหมด":overall===false?"❌ วัคซีนยังไม่ผ่านเงื่อนไข — ตรวจสอบรายการด้านล่าง":"⏳ รอข้อมูลครบเพื่อตรวจสอบ";
-  if(dir==="export"&&getCond()==="general"){cls="na";head="ℹ️ ปลายทางทั่วไป — บันทึกข้อมูลวัคซีนไว้ ไม่ตรวจเงื่อนไขอัตโนมัติ (ไม่ขึ้นฟ้อง)";}
-  let h='<div class="vax-result '+cls+'"><b>'+head+'</b>';
-  if(items.length){h+='<ul>';items.forEach(it=>{h+='<li>'+stIcon(it.r)+'<span><b>'+esc(it.label)+':</b> '+esc(it.r.msg||"-")+'</span></li>';});h+='</ul>';}
-  if(!dir)h+='<div class="mini" style="margin-top:6px">เลือกทิศทางงานก่อนเพื่อเริ่มตรวจสอบ</div>';
-  h+='</div>';
-  $("#vaxResult").innerHTML=h;
-}
+/* live vaccine refresh — handled per-pet by refreshPetVax / refreshAllVax */
 function stIcon(r){if(r.ok===true)return '<span style="color:#16a34a;font-size:16px">✔️</span>';
   if(r.ok===false)return '<span style="color:#dc2626;font-size:16px">❌</span>';
   return '<span style="color:#94a3b8;font-size:15px">⚪</span>';}
@@ -1080,6 +1232,7 @@ document.addEventListener("click",e=>{
   const act=el.dataset.act;
   if(act==="nav"){STATE.view=el.dataset.view;if(el.dataset.view==="new")STATE.editId=null;STATE.filters={};render();window.scrollTo(0,0);}
   else if(act==="clearfilter"){STATE.filters={};render();}
+  else if(act==="finpreset"){const r=presetRange(el.dataset.preset);STATE.filters.f_from=r[0];STATE.filters.f_to=r[1];render();}
   else if(act==="toggle"){toggleStep(el.dataset.id,el.dataset.kind,+el.dataset.idx);}
   else if(act==="paid"){const j=getJob(el.dataset.id);if(j){j.paid=!j.paid;persistJob(j);render();}}
   else if(act==="edit"){STATE.editId=el.dataset.id;STATE.view="new";render();window.scrollTo(0,0);}
@@ -1087,8 +1240,10 @@ document.addEventListener("click",e=>{
   else if(act==="pdf"){generatePDF(el.dataset.id);}
   else if(act==="del"){const j=getJob(el.dataset.id);
     if(j&&confirm("ลบงานของ \""+(j.customerName||"-")+"\" ?")){deleteJob(el.dataset.id);toast("ลบงานแล้ว");render();}}
-  else if(act==="addvax"){formVax[el.dataset.grp].push({date:"",expiry:""});paintVax();refreshVax();}
-  else if(act==="rmvax"){formVax[el.dataset.grp].splice(+el.dataset.i,1);paintVax();refreshVax();}
+  else if(act==="addvax"){syncPetsFromDOM();formPets[+el.dataset.pet].vax[el.dataset.grp].push({date:"",expiry:""});renderPets();}
+  else if(act==="rmvax"){syncPetsFromDOM();formPets[+el.dataset.pet].vax[el.dataset.grp].splice(+el.dataset.i,1);renderPets();}
+  else if(act==="addpet"){syncPetsFromDOM();formPets.push(blankFormPet());renderPets();}
+  else if(act==="rmpet"){syncPetsFromDOM();formPets.splice(+el.dataset.pet,1);renderPets();}
   else if(act==="addcost"){formCosts.push({cat:"",amount:""});paintCosts();refreshFinance();}
   else if(act==="rmcost"){formCosts.splice(+el.dataset.i,1);paintCosts();refreshFinance();}
   else if(act==="savejob"){saveJobFromForm();}
@@ -1107,7 +1262,9 @@ document.addEventListener("input",e=>{
     if(el.type==="text"){const sel=document.activeElement;render();
       const back=document.querySelector('[data-key="'+el.dataset.key+'"]');if(back){back.focus();back.setSelectionRange(back.value.length,back.value.length);}}
     else render();}
-  else if(act==="vaxin"){formVax[el.dataset.grp][+el.dataset.i][el.dataset.f]=el.value;refreshVax();}
+  else if(act==="vaxin"){const pp=formPets[+el.dataset.pet];if(pp)pp.vax[el.dataset.grp][+el.dataset.i][el.dataset.f]=el.value;refreshPetVax(+el.dataset.pet);}
+  else if(act==="petin"){const pp=formPets[+el.dataset.pet];if(pp)pp[el.dataset.f]=el.value;}
+  else if(act==="petctx"){const pp=formPets[+el.dataset.pet];if(pp)pp[el.dataset.f]=el.value;refreshPetVax(+el.dataset.pet);}
   else if(act==="finin"){refreshFinance();}
   else if(act==="recin"){setBE("be-record",el.value);}
   else if(act==="costin"){if(formCosts[+el.dataset.i])formCosts[+el.dataset.i][el.dataset.f]=el.value;refreshFinance();}
@@ -1121,10 +1278,9 @@ document.addEventListener("input",e=>{
     if(el.name==="dir"){
       document.querySelectorAll("#dirRow label").forEach(l=>l.classList.remove("on"));
       el.closest("label").classList.add("on");
-      paintVaxConfig();paintVax();
-      const tl=$("#travelLbl");if(tl)tl.textContent=el.value==="import"?"วันเดินทางเข้าประเทศไทย":el.value==="export"?"วันเดินทางออกจากประเทศไทย":"วันเดินทาง";
-    }
-    refreshVax();
+      syncPetsFromDOM();paintVaxConfig();renderPets();updateTravelLbl();
+    }else if(el.id==="f-travel"){setBE("be-travel",el.value);refreshAllVax();}
+    else if(el.id==="f-cond"){formCond=el.value;refreshAllVax();}
   }
 });
 document.addEventListener("change",e=>{
@@ -1146,10 +1302,10 @@ document.addEventListener("change",e=>{
         document.querySelectorAll("#dirRow label").forEach(l=>l.classList.remove("on"));
         r.closest("label").classList.add("on");}
     }
-    paintVaxConfig();paintVax();refreshVax();updateTravelLbl();
+    syncPetsFromDOM();paintVaxConfig();renderPets();updateTravelLbl();
   }
-  else if(el.dataset.act==="speciessel"){paintBreed();}
-  else if(el.dataset.act==="breedsel"){paintBreed();}
+  else if(el.dataset.act==="speciessel"){syncPetsFromDOM();renderPets();}
+  else if(el.dataset.act==="breedsel"){syncPetsFromDOM();renderPets();}
   else if(el.dataset.act==="countrysel"){paintCountry(el.dataset.which);}
 });
 
@@ -1183,7 +1339,7 @@ function handleImport(file){
     try{const d=JSON.parse(rd.result);
       if(!d.jobs||!Array.isArray(d.jobs))throw new Error("ไฟล์ไม่ถูกต้อง");
       if(!confirm("นำเข้า "+d.jobs.length+" งาน? ข้อมูลเดิมในเครื่องจะถูกแทนที่"))return;
-      DB.jobs=d.jobs;if(d.cloud)DB.cloud=Object.assign(DB.cloud,d.cloud);
+      DB.jobs=d.jobs;DB.jobs.forEach(migrateJobPets);if(d.cloud)DB.cloud=Object.assign(DB.cloud,d.cloud);
       saveLocal();toast("นำเข้าข้อมูลสำเร็จ","ok");render();
     }catch(err){toast("นำเข้าไม่สำเร็จ: "+err.message,"err");}
   };
@@ -1204,7 +1360,8 @@ function cloudSave(){
 /* ============================ PDF REPORT ============================ */
 function buildReportHTML(j){
   const t=JOB_TYPES[j.jobType]||{label:j.jobType||"-",docs:[],steps:[]};
-  const p=progressOf(j);const it=jobItems(j);const pet=j.pet||{};
+  const p=progressOf(j);const it=jobItems(j);const pets=j.pets||[];
+  const condTxt=j.vaccineDir==="export"?({china:"ประเทศจีน (China)",eu:"EU Countries",general:"ทั่วไป (ไม่ตรวจเงื่อนไข)"}[j.exportCond]||"-"):(j.vaccineDir==="import"?"นำเข้าประเทศไทย":"-");
   const dirTxt=j.vaccineDir==="import"?"Import (นำเข้าประเทศไทย)":j.vaccineDir==="export"?"Export (ออกจากประเทศไทย)":"-";
   const travelLbl=j.vaccineDir==="import"?"วันเดินทางเข้าไทย":j.vaccineDir==="export"?"วันเดินทางออกจากไทย":"วันเดินทาง";
   function dt(s){return s?(fmtCE(s)+" / พ.ศ. "+toBE(s)):"-";}
@@ -1214,30 +1371,36 @@ function buildReportHTML(j){
     if(r.ok===false)return '<span class="no">✘ ไม่ผ่าน</span> '+esc(r.msg||"");
     return '<span class="na">'+esc(r.msg||"-")+'</span>';}
 
-  let vaxHTML="";
-  if(j.vax&&j.vaccineDir){
-    const res=validateVaccines(j);
-    const condTxt=j.vaccineDir==="export"?({china:"ประเทศจีน (China)",eu:"EU Countries",general:"ทั่วไป (ไม่ตรวจเงื่อนไข)"}[j.exportCond]||"-"):"นำเข้าประเทศไทย";
-    let vrows="";
-    [["combined","วัคซีนรวม"],["lepto","วัคซีนป้องกันฉี่หนู"],["rabies","วัคซีนพิษสุนัขบ้า"]].forEach(g=>{
-      (j.vax[g[0]]||[]).forEach((v,i)=>{
-        if(!v.date&&!v.expiry)return;
-        const r=(res.rows[g[0]]||[])[i]||null;
-        vrows+='<tr><td>'+esc(g[1])+'</td><td>เข็มที่ '+(i+1)+'</td><td>'+dt(v.date)+'</td><td>'+(v.expiry?dt(v.expiry):"-")+'</td><td>'+stTxt(r)+'</td></tr>';
+  let petsHTML="";
+  pets.forEach((pet,idx)=>{
+    petsHTML+='<div class="sec"><h3>สัตว์เลี้ยงตัวที่ '+(idx+1)+(pet.name?(' — '+esc(pet.name)):'')+'</h3><div class="kv">'+
+      row("ชื่อสัตว์เลี้ยง",esc(pet.name||"-"))+row("ประเภท",esc(pet.species||"-"))+
+      row("สายพันธุ์",esc(breedDisplay(pet)||"-"))+row("หมายเลขไมโครชิพ",esc(pet.microchip||"-"))+
+      row("สี",esc(pet.color||"-"))+row("เพศ",esc(pet.sex||"-"))+
+      row("วันเดือนปีเกิด",dt(pet.dob))+'</div>';
+    if(j.vaccineDir){
+      const res=validatePet(pet,j.vaccineDir,j.exportCond,j.travelDate);
+      let vrows="";
+      [["combined","วัคซีนรวม"],["lepto","วัคซีนป้องกันฉี่หนู"],["rabies","วัคซีนพิษสุนัขบ้า"]].forEach(g=>{
+        ((pet.vax&&pet.vax[g[0]])||[]).forEach((v,i)=>{
+          if(!v.date&&!v.expiry)return;
+          const r=(res.rows[g[0]]||[])[i]||null;
+          vrows+='<tr><td>'+esc(g[1])+'</td><td>เข็มที่ '+(i+1)+'</td><td>'+dt(v.date)+'</td><td>'+(v.expiry?dt(v.expiry):"-")+'</td><td>'+stTxt(r)+'</td></tr>';
+        });
       });
-    });
-    if(j.vaccineDir==="export"){
-      if(res.micro)vrows+='<tr><td colspan="2">วันที่ฝังไมโครชิพ</td><td colspan="2">'+dt(j.microchipDate)+'</td><td>'+stTxt(res.micro)+'</td></tr>';
-      if(res.blood)vrows+='<tr><td colspan="2">วันที่เจาะเลือด</td><td colspan="2">'+dt(j.bloodDate)+'</td><td>'+stTxt(res.blood)+'</td></tr>';
+      if(j.vaccineDir==="export"){
+        if(res.micro)vrows+='<tr><td colspan="2">วันที่ฝังไมโครชิพ</td><td colspan="2">'+dt(pet.microchipDate)+'</td><td>'+stTxt(res.micro)+'</td></tr>';
+        if(res.blood)vrows+='<tr><td colspan="2">วันที่เจาะเลือด</td><td colspan="2">'+dt(pet.bloodDate)+'</td><td>'+stTxt(res.blood)+'</td></tr>';
+      }
+      const ov=vaxOverall(res);
+      const ovTxt=(j.vaccineDir==="export"&&j.exportCond==="general")?'<span class="na">บันทึกข้อมูลไว้ — ไม่ตรวจเงื่อนไข</span>':
+        ov===true?'<span class="ok">✔ ผ่านเงื่อนไขทั้งหมด</span>':ov===false?'<span class="no">✘ ยังไม่ผ่านเงื่อนไข</span>':'<span class="na">— รอข้อมูลเพิ่มเติม</span>';
+      petsHTML+='<p style="margin-top:9px;font-weight:700;font-size:11.5px">💉 วัคซีน</p>'+
+        (vrows?'<table><thead><tr><th>ประเภทวัคซีน</th><th>รายการ</th><th>วันที่ฉีด</th><th>วันหมดอายุ</th><th>ผลตรวจเงื่อนไข</th></tr></thead><tbody>'+vrows+'</tbody></table>':'<p style="margin-top:6px;color:#999;font-size:11px">ยังไม่มีข้อมูลวัคซีน</p>')+
+        '<p style="margin-top:7px;font-size:11.5px"><b>สรุปผลวัคซีน: </b>'+ovTxt+'</p>';
     }
-    const ov=vaxOverall(res);
-    const ovTxt=(j.vaccineDir==="export"&&j.exportCond==="general")?'<span class="na">บันทึกข้อมูลไว้ — ไม่ตรวจเงื่อนไข</span>':
-      ov===true?'<span class="ok">✔ ผ่านเงื่อนไขทั้งหมด</span>':ov===false?'<span class="no">✘ ยังไม่ผ่านเงื่อนไข</span>':'<span class="na">— รอข้อมูลเพิ่มเติม</span>';
-    vaxHTML='<div class="sec"><h3>วัคซีน & เงื่อนไข</h3><div class="kv">'+
-      row("โหมด",dirTxt)+row("เงื่อนไขปลายทาง",esc(condTxt))+'</div>'+
-      (vrows?'<table><thead><tr><th>ประเภทวัคซีน</th><th>รายการ</th><th>วันที่ฉีด</th><th>วันหมดอายุ</th><th>ผลตรวจเงื่อนไข</th></tr></thead><tbody>'+vrows+'</tbody></table>':'<p style="margin-top:6px;color:#999;font-size:11px">ยังไม่มีข้อมูลวัคซีน</p>')+
-      '<p style="margin-top:7px;font-size:11.5px"><b>สรุปผลวัคซีน: </b>'+ovTxt+'</p></div>';
-  }
+    petsHTML+='</div>';
+  });
 
   const total=jobCostTotal(j);const profit=jobProfit(j);
   let costRows=(j.costs||[]).map(c=>'<tr><td>'+esc(c.cat||"-")+'</td><td class="tot">'+money(c.amount)+'</td></tr>').join("");
@@ -1300,18 +1463,14 @@ function buildReportHTML(j){
   html+='<div class="rpt-title">รายงานสรุปงาน — '+esc(t.label)+'</div>';
   html+='<div class="sec"><h3>ข้อมูลงาน & ลูกค้า</h3><div class="kv">'+
     row("เลขที่งาน","<b>"+esc(j.jobNo||"-")+"</b>")+row("ประเภทงาน",esc(t.label))+
-    row("ทิศทางงาน",dirTxt)+row("สถานะงาน",isClosed(j)?'<span class="ok">ปิดจ๊อบแล้ว</span>':"กำลังดำเนินการ")+
+    row("ทิศทางงาน",dirTxt)+row("เงื่อนไขปลายทาง",esc(condTxt))+
+    row("สถานะงาน",isClosed(j)?'<span class="ok">ปิดจ๊อบแล้ว</span>':"กำลังดำเนินการ")+
+    row("จำนวนสัตว์เลี้ยง",pets.length+" ตัว")+
     row("ชื่อลูกค้า",esc(j.customerName||"-"))+row("เบอร์โทรศัพท์",esc(j.customerPhone||"-"))+
     row("ประเทศต้นทาง",esc(j.originCountry||"-"))+row("ประเทศปลายทาง",esc(j.destCountry||"-"))+
     row(travelLbl,dt(j.travelDate))+row("วันที่บันทึกงาน",dt(j.recordDate))+
     '</div></div>';
-  html+='<div class="sec"><h3>รายละเอียดสัตว์เลี้ยง</h3><div class="kv">'+
-    row("ชื่อสัตว์เลี้ยง",esc(pet.name||"-"))+row("ประเภท",esc(pet.species||"-"))+
-    row("สายพันธุ์",esc(breedDisplay(pet)||"-"))+row("หมายเลขไมโครชิพ",esc(pet.microchip||"-"))+
-    row("สี",esc(pet.color||"-"))+row("เพศ",esc(pet.sex||"-"))+
-    row("วันเดือนปีเกิด",dt(pet.dob))+
-    '</div></div>';
-  html+=vaxHTML+finHTML+clHTML;
+  html+=petsHTML+finHTML+clHTML;
   if(j.notes)html+='<div class="sec"><h3>หมายเหตุ</h3><p style="margin-top:6px;font-size:11.5px;white-space:pre-wrap">'+esc(j.notes)+'</p></div>';
   html+='<div class="foot">เอกสารนี้สร้างอัตโนมัติจากระบบ Convey Dashboard • '+fmtCE(todayStr())+' (พ.ศ. '+toBE(todayStr())+')</div>';
   html+='</div>';

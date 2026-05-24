@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Convey Pet Relocation — Dashboard งาน</title>
+<style>
+:root{
+  --bg:#eef2f6;--card:#ffffff;--ink:#0f172a;--mut:#64748b;--line:#e2e8f0;
+  --brand:#0d9488;--brand-d:#0f766e;--brand-l:#ccfbf1;
+  --done:#16a34a;--done-l:#dcfce7;--gray:#cbd5e1;--gray-l:#f1f5f9;
+  --red:#dc2626;--red-l:#fee2e2;--amber:#d97706;--amber-l:#fef3c7;--blue:#2563eb;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{font-family:'Leelawadee UI','Sarabun','Noto Sans Thai',-apple-system,'Segoe UI',Tahoma,sans-serif;
+  background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;}
+#app{display:flex;min-height:100vh;}
+
+/* Sidebar */
+aside{width:236px;background:#0f172a;color:#cbd5e1;flex-shrink:0;display:flex;flex-direction:column;
+  position:sticky;top:0;height:100vh;}
+.logo{padding:18px 18px 14px;border-bottom:1px solid #1e293b;}
+.logo b{color:#fff;font-size:15px;display:block;}
+.logo span{font-size:11px;color:#64748b;}
+nav{padding:8px;overflow-y:auto;flex:1;}
+.nav-sec{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:#475569;padding:12px 12px 5px;}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:8px;cursor:pointer;
+  font-size:13.5px;color:#cbd5e1;margin-bottom:1px;transition:.12s;}
+.nav-item:hover{background:#1e293b;color:#fff;}
+.nav-item.active{background:var(--brand);color:#fff;font-weight:600;}
+.nav-item .ic{width:20px;text-align:center;font-size:14px;}
+.nav-item .cnt{margin-left:auto;background:#1e293b;color:#94a3b8;font-size:11px;
+  padding:1px 7px;border-radius:10px;}
+.nav-item.active .cnt{background:rgba(255,255,255,.22);color:#fff;}
+
+/* Main */
+main{flex:1;min-width:0;display:flex;flex-direction:column;}
+.topbar{background:var(--card);border-bottom:1px solid var(--line);padding:14px 26px;
+  display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:30;}
+.topbar h1{font-size:18px;font-weight:700;}
+.topbar .sub{font-size:12px;color:var(--mut);}
+.topbar .right{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.content{padding:22px 26px 60px;}
+
+/* Buttons */
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 14px;
+  border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:500;transition:.12s;}
+.btn:hover{background:var(--gray-l);}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff;}
+.btn.primary:hover{background:var(--brand-d);}
+.btn.danger{background:var(--card);border-color:var(--red);color:var(--red);}
+.btn.danger:hover{background:var(--red-l);}
+.btn.sm{padding:5px 10px;font-size:12px;}
+.btn.ghost{border-color:transparent;background:transparent;}
+.btn.ghost:hover{background:var(--gray-l);}
+
+/* Cards */
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px;}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;}
+.stat .lbl{font-size:12px;color:var(--mut);}
+.stat .val{font-size:30px;font-weight:800;margin-top:3px;}
+.stat .val small{font-size:13px;font-weight:600;color:var(--mut);}
+.stat.b1{border-top:3px solid var(--brand);}
+.stat.b2{border-top:3px solid var(--blue);}
+.stat.b3{border-top:3px solid var(--done);}
+.stat.b4{border-top:3px solid var(--amber);}
+
+/* Filters */
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;background:var(--card);
+  border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px;}
+.fld{display:flex;flex-direction:column;gap:3px;}
+.fld label{font-size:11px;color:var(--mut);font-weight:600;}
+input,select,textarea{font-family:inherit;font-size:13px;border:1px solid var(--line);
+  border-radius:7px;padding:7px 9px;background:#fff;color:var(--ink);}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--brand-l);border-color:var(--brand);}
+input[type=date]{min-width:140px;}
+
+/* Section / overview table */
+.sec-title{font-size:14px;font-weight:700;margin:6px 0 10px;display:flex;align-items:center;gap:8px;}
+.tbl-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--card);}
+table{border-collapse:separate;border-spacing:0;width:100%;}
+th,td{padding:9px 11px;text-align:left;font-size:12.5px;border-bottom:1px solid var(--line);white-space:nowrap;}
+th{background:#f8fafc;font-weight:700;color:#334155;position:sticky;top:0;z-index:2;font-size:11.5px;}
+tbody tr:hover{background:#f8fafc;}
+tbody tr:last-child td{border-bottom:none;}
+.t-mut{color:var(--mut);}
+
+/* Matrix table (job tabs) */
+.mx th.grp{text-align:center;background:#eef2f6;border-left:2px solid var(--line);}
+.mx th.grp.docs{background:#eff6ff;color:#1d4ed8;}
+.mx th.grp.steps{background:#f0fdfa;color:var(--brand-d);}
+.mx .sticky-l{position:sticky;left:0;background:var(--card);z-index:3;border-right:2px solid var(--line);min-width:150px;}
+.mx th.sticky-l{z-index:5;background:#f8fafc;}
+.mx tbody tr:hover .sticky-l{background:#f8fafc;}
+.mx .sc{text-align:center;padding:5px 6px;min-width:114px;border-left:1px solid #eef2f6;}
+.mx td.firstdoc,.mx th.firstdoc{border-left:2px solid #dbeafe;}
+.mx td.firststep,.mx th.firststep{border-left:2px solid #ccfbf1;}
+
+/* Toggle dot */
+.dot{width:30px;height:30px;border-radius:50%;border:2px solid var(--gray);background:var(--gray-l);
+  cursor:pointer;font-size:15px;color:#fff;display:inline-flex;align-items:center;justify-content:center;
+  transition:.12s;font-weight:700;}
+.dot:hover{transform:scale(1.08);}
+.dot.done{background:var(--done);border-color:var(--done);box-shadow:0 1px 4px rgba(22,163,74,.4);}
+.cd{margin-top:3px;width:108px;font-size:10.5px;padding:3px 4px;color:var(--mut);}
+.cd.has{color:var(--ink);border-color:#bbf7d0;}
+
+/* progress bar */
+.pbar{width:100%;height:7px;background:var(--gray-l);border-radius:6px;overflow:hidden;}
+.pbar i{display:block;height:100%;background:var(--brand);border-radius:6px;}
+.pwrap{display:flex;align-items:center;gap:7px;}
+.pwrap span{font-size:11px;color:var(--mut);font-weight:600;min-width:34px;}
+
+/* badges */
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;
+  padding:3px 9px;border-radius:20px;}
+.bg-paid{background:var(--done-l);color:#15803d;}
+.bg-unpaid{background:var(--amber-l);color:#b45309;}
+.bg-closed{background:var(--brand-l);color:var(--brand-d);}
+.bg-prog{background:#e0e7ff;color:#4338ca;}
+.bg-type{background:#f1f5f9;color:#475569;}
+.chip-ok{color:var(--done);font-weight:700;}
+.chip-no{color:var(--red);font-weight:700;}
+.chip-na{color:var(--mut);}
+
+/* Form */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;}
+.form-grid .f.wide{grid-column:1/-1;}
+.form-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:18px;}
+.form-card h3{font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;
+  padding-bottom:10px;border-bottom:1px solid var(--line);}
+.f{display:flex;flex-direction:column;gap:4px;}
+.f label{font-size:12px;color:#334155;font-weight:600;}
+.f label .req{color:var(--red);}
+.f input,.f select,.f textarea{width:100%;}
+.be{font-size:11px;color:var(--brand-d);font-weight:600;margin-top:2px;min-height:14px;}
+.radio-row{display:flex;gap:10px;flex-wrap:wrap;}
+.radio-row label{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  border:1px solid var(--line);padding:10px 16px;border-radius:8px;cursor:pointer;
+  font-weight:600;font-size:13px;white-space:nowrap;flex:1 1 160px;}
+.radio-row label.on{border-color:var(--brand);background:var(--brand-l);color:var(--brand-d);}
+.radio-row input{accent-color:var(--brand);flex:none;width:16px;height:16px;margin:0;}
+
+/* vaccine */
+.vax-group{border:1px solid var(--line);border-radius:10px;padding:13px 14px;margin-bottom:12px;background:#fcfdfd;}
+.vax-group > .vh{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
+.vax-group > .vh b{font-size:13px;}
+.vax-row{display:grid;grid-template-columns:74px 1fr 1fr 150px 30px;gap:9px;align-items:start;
+  padding:8px 0;border-top:1px dashed var(--line);}
+.vax-row:first-of-type{border-top:none;}
+.vax-row .pin{font-size:12px;font-weight:700;color:var(--brand-d);padding-top:8px;}
+.vax-row .vfld label{font-size:10.5px;color:var(--mut);font-weight:600;}
+.vax-row .vfld input{width:100%;}
+.vax-row .vst{padding-top:7px;font-size:18px;text-align:center;}
+.vax-rm{border:none;background:none;color:var(--red);cursor:pointer;font-size:16px;padding-top:7px;}
+.vax-result{border-radius:10px;padding:12px 14px;margin-top:6px;font-size:12.5px;}
+.vax-result.ok{background:var(--done-l);border:1px solid #bbf7d0;}
+.vax-result.no{background:var(--red-l);border:1px solid #fecaca;}
+.vax-result.na{background:var(--gray-l);border:1px solid var(--line);}
+.vax-result ul{margin:6px 0 0 4px;list-style:none;}
+.vax-result li{padding:3px 0;display:flex;gap:7px;align-items:flex-start;}
+.cost-row{display:grid;grid-template-columns:1fr 170px 30px;gap:9px;margin-bottom:7px;align-items:center;}
+.cost-rm{border:none;background:none;color:var(--red);cursor:pointer;font-size:15px;}
+.fin-sum{display:flex;flex-wrap:wrap;gap:10px;}
+.fin-sum>div{flex:1 1 160px;background:var(--gray-l);border-radius:9px;padding:10px 14px;
+  display:flex;flex-direction:column;gap:2px;}
+.fin-sum>div span{font-size:11px;color:var(--mut);}
+.fin-sum>div b{font-size:18px;}
+.fin-profit{background:var(--done-l)!important;}
+.fin-profit b{color:#15803d;}
+.fin-profit.neg{background:var(--red-l)!important;}
+.fin-profit.neg b{color:var(--red);}
+
+.hint{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:9px 12px;
+  font-size:12px;color:#92400e;margin-bottom:12px;}
+.empty{text-align:center;padding:50px 20px;color:var(--mut);}
+.empty .big{font-size:40px;margin-bottom:8px;}
+
+/* toast */
+#toast{position:fixed;bottom:22px;right:22px;z-index:200;display:flex;flex-direction:column;gap:8px;}
+.toast{background:#0f172a;color:#fff;padding:11px 16px;border-radius:9px;font-size:13px;
+  box-shadow:0 8px 24px rgba(0,0,0,.25);animation:slidein .2s;max-width:340px;}
+.toast.ok{background:var(--brand-d);}
+.toast.err{background:var(--red);}
+@keyframes slidein{from{transform:translateX(40px);opacity:0;}}
+
+/* settings */
+.set-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:11px 0;border-bottom:1px solid var(--line);}
+.set-row:last-child{border-bottom:none;}
+pre{background:#0f172a;color:#e2e8f0;padding:14px;border-radius:9px;font-size:11.5px;
+  overflow:auto;line-height:1.55;}
+code{background:var(--gray-l);padding:1px 6px;border-radius:4px;font-size:12px;}
+.pill{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;}
+.pill.on{background:var(--done-l);color:#15803d;}
+.pill.off{background:var(--gray-l);color:var(--mut);}
+a{color:var(--brand-d);}
+.mini{font-size:11.5px;color:var(--mut);}
+.row-actions{display:flex;gap:4px;}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside>
+    <div class="logo">
+      <b>🐾 Convey Pet Relocation</b>
+      <span>Dashboard ภาพรวมการทำงาน</span>
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <main>
+    <div class="topbar">
+      <div>
+        <h1 id="pageTitle">ภาพรวม</h1>
+        <div class="sub" id="pageSub"></div>
+      </div>
+      <div class="right">
+        <span class="pill off" id="modePill">Local</span>
+        <button class="btn sm" data-act="nav" data-view="new">+ บันทึกงานใหม่</button>
+      </div>
+    </div>
+    <div class="content" id="content"></div>
+  </main>
+</div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* ============================ CONFIG ============================ */
+const JOB_TYPES = {
+  export_permit:{label:"Export Permit",icon:"📤",dir:"export",
+    docs:["สมุดวัคซีน","ผลเลือด (ถ้ามี)","ใบรับรองไมโครชิพ (ถ้ามี)","Import Permit (ถ้ามี)","ใบรับรองพื้นที่ (ถ้ามี)","สำเนา Passport ผู้โดยสาร"],
+    steps:["แจ้งค่าใช้จ่าย","จัดเตรียม ร.1/1 + HC","นัดสัตว์เลี้ยงตรวจสุขภาพ","ส่งมอบเอกสารให้ลูกค้า","เก็บค่าใช้จ่าย","ปิดจ๊อบ"]},
+  export_cargo:{label:"Export Cargo",icon:"✈️",dir:"export",
+    docs:["สมุดวัคซีน","ผลเลือด (ถ้ามี)","ใบรับรองไมโครชิพ (ถ้ามี)","Import Permit (ถ้ามี)","ใบรับรองพื้นที่ (ถ้ามี)","สำเนา Passport ผู้โดยสาร"],
+    steps:["แจ้งค่าใช้จ่าย","แจ้ง Booking Flight ดรีม","ออก AWB","อัพเดทเที่ยวบินลูกค้า","จัดเตรียม ร.1/1 + HC","นัดสัตว์เลี้ยงตรวจสุขภาพ","ส่งมอบเอกสารให้ลูกค้า","นัดรับสัตว์เลี้ยงเพื่อเช็กอิน","เช็กอิน","สัตว์เลี้ยงถึงปลายทางแล้ว","เก็บค่าใช้จ่าย","ปิดจ๊อบ"]},
+  import_permit:{label:"Import Permit",icon:"📥",dir:"import",
+    docs:["สมุดวัคซีน","ใบรับรองไมโครชิพ (ถ้ามี)","Import Permit (ถ้ามี)","สำเนา Passport ผู้โดยสาร"],
+    steps:["แจ้งค่าใช้จ่าย","จัดเตรียม ร.1/1","ยื่นเอกสารให้เจ้าหน้าที่","ส่งเอกสารให้ลูกค้า","เก็บค่าใช้จ่าย","ปิดจ๊อบ"]},
+  import_cargo:{label:"Import Cargo",icon:"🛬",dir:"import",
+    docs:["สมุดวัคซีน","ใบรับรองไมโครชิพ (ถ้ามี)","Import Permit (ถ้ามี)","สำเนา Passport ผู้โดยสาร","AWB","HC","ลูกค้ารับเอง","จัดส่งลูกค้า"],
+    steps:["แจ้งค่าใช้จ่าย","จัดเตรียม ร.1/1","ยื่นเอกสารให้เจ้าหน้าที่","ติดตามสถานะเที่ยวบิน","ส่งเอกสารให้ Supplier","ผ่านพิธีการ","จัดส่งสัตว์เลี้ยงให้ลูกค้า","เก็บค่าใช้จ่าย","ปิดจ๊อบ"]},
+  rabies_titer:{label:"Rabies Titer",icon:"🩸",dir:"",
+    docs:[],
+    steps:["รับสมุดวัคซีน","รับสำเนา Passport ผู้โดยสาร","ส่งรายละเอียดให้แลป","จ่ายเงินแลป","เก็บเงินลูกค้า","ส่งผลเลือดให้ลูกค้า","เก็บผลตัวจริง / ส่งให้ลูกค้า"]},
+  vaccine_book:{label:"สมุดวัคซีน",icon:"📒",dir:"",
+    docs:[],
+    steps:["บันทึกรายละเอียดสัตว์เลี้ยง","สแกนเข้า Drive พร้อม QR","ส่งให้ลูกค้า","เก็บเงิน"]},
+  transport:{label:"ขนส่ง (Pick up / Delivery)",icon:"🚐",dir:"",
+    docs:[],
+    steps:["จัดรถ","บันทึกข้อมูลสถานที่รับ-ส่ง","เก็บเงิน","ปิดจ๊อบ"]},
+  other:{label:"งานทั่วไป (Other)",icon:"📋",dir:"",
+    docs:[],
+    steps:["รับรายละเอียดงาน","เสนอราคา","เก็บเงิน","ปิดจ๊อบ"]}
+};
+const TYPE_ORDER=["export_permit","export_cargo","import_permit","import_cargo","rabies_titer","vaccine_book","transport","other"];
+const VAX_GROUPS={combined:"วัคซีนรวม",lepto:"วัคซีนป้องกันโรคฉี่หนู (Leptospirosis)",rabies:"วัคซีนป้องกันโรคพิษสุนัขบ้า (Rabies)"};
+const TH_MON=["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+const COUNTRIES=["ไทย (Thailand)","จีน (China)","สหรัฐอเมริกา (USA)","สหราชอาณาจักร (United Kingdom)","ออสเตรเลีย (Australia)","นิวซีแลนด์ (New Zealand)","ญี่ปุ่น (Japan)","เกาหลีใต้ (South Korea)","สิงคโปร์ (Singapore)","มาเลเซีย (Malaysia)","ฮ่องกง (Hong Kong)","ไต้หวัน (Taiwan)","เยอรมนี (Germany)","ฝรั่งเศส (France)","เนเธอร์แลนด์ (Netherlands)","สวิตเซอร์แลนด์ (Switzerland)","แคนาดา (Canada)","อินเดีย (India)","สหรัฐอาหรับเอมิเรตส์ (UAE)","กาตาร์ (Qatar)","เวียดนาม (Vietnam)","อินโดนีเซีย (Indonesia)","ฟิลิปปินส์ (Philippines)","อิตาลี (Italy)","สเปน (Spain)","สวีเดน (Sweden)","นอร์เวย์ (Norway)","เดนมาร์ก (Denmark)","เบลเยียม (Belgium)","ออสเตรีย (Austria)"];
+const MIXED_BREED="พันธุ์ผสม (Mixed)";
+const OTHER_BREED="อื่นๆ — พิมพ์เอง";
+const OTHER_COUNTRY="อื่นๆ — ระบุประเทศเอง";
+const DOG_BREEDS=["Poodle (พุดเดิ้ล)","Pomeranian (ปอมเมอเรเนียน)","Shih Tzu (ชิห์สุ)","Golden Retriever (โกลเด้น รีทรีฟเวอร์)","Labrador Retriever (ลาบราดอร์ รีทรีฟเวอร์)","Chihuahua (ชิวาวา)","French Bulldog (เฟรนช์ บูลด็อก)","English Bulldog (อิงลิช บูลด็อก)","Beagle (บีเกิ้ล)","Siberian Husky (ไซบีเรียน ฮัสกี้)","German Shepherd (เยอรมัน เชพเพิร์ด)","Pug (ปั๊ก)","Pembroke Welsh Corgi (คอร์กี้)","Dachshund (ดัชชุน)","Maltese (มอลทีส)","Yorkshire Terrier (ยอร์กเชียร์ เทอร์เรีย)","Jack Russell Terrier (แจ็ค รัสเซลล์ เทอร์เรีย)","Border Collie (บอร์เดอร์ คอลลี่)","Rottweiler (ร็อตไวเลอร์)","Miniature Schnauzer (มินิเอเจอร์ ชเนาเซอร์)","Thai Bangkaew (ไทยบางแก้ว)","Thai Ridgeback (ไทยหลังอาน)","Chow Chow (เชาเชา)","Cocker Spaniel (ค็อกเกอร์ สแปเนียล)","Samoyed (ซามอยด์)","Shiba Inu (ชิบะ อินุ)","Bichon Frise (บิชอง ฟริเซ่)","Cavalier King Charles Spaniel (คาวาเลียร์ คิง ชาร์ลส)","Doberman (โดเบอร์แมน)","Great Dane (เกรท เดน)","Australian Shepherd (ออสเตรเลียน เชพเพิร์ด)","Akita (อาคิตะ)"];
+const CAT_BREEDS=["Persian (เปอร์เซีย)","Scottish Fold (สก็อตทิช โฟลด์)","British Shorthair (บริติช ชอร์ตแฮร์)","American Shorthair (อเมริกัน ชอร์ตแฮร์)","Maine Coon (เมนคูน)","Siamese (วิเชียรมาศ)","Ragdoll (แร็กดอลล์)","Munchkin (มันช์กิน)","Bengal (เบงกอล)","Sphynx (สฟิงซ์)","Exotic Shorthair (เอ็กโซติก ชอร์ตแฮร์)","Russian Blue (รัสเซียน บลู)","Norwegian Forest (นอร์วีเจียน ฟอเรสต์)","Khao Manee (ขาวมณี)","Korat (โคราช/สีสวาด)","Abyssinian (อะบิสซิเนียน)","Devon Rex (เดวอน เร็กซ์)","Domestic Shorthair (ขนสั้นทั่วไป)"];
+const COST_CATS=["ค่าใบอนุญาตนำเข้า","ค่าใบอนุญาตส่งออก","ค่าบริการ คุณเอ๋","Transair","ค่าน้ำมัน","ค่าคอมมิสชั่นปุ๋ย","ค่าคอมมิสชั่นดรีม","ค่าขนส่งโน๊ต","ค่าขนส่งแจ๊ค","ค่าแมสเซนเจอร์ส่งเอกสาร","ค่าโรงแรมฝากเลี้ยง","ค่าผลแลป","ค่าส่งเอกสาร","ค่าใช้จ่ายหมอพิม"];
+const LS_KEY="conveyDashboard_v1";
+
+/* ============================ STATE ============================ */
+let DB={jobs:[],cloud:{url:"",key:"",enabled:false}};
+let STATE={view:"dashboard",editId:null,filters:{}};
+let formVax={combined:[{date:"",expiry:""}],lepto:[{date:"",expiry:""}],rabies:[{date:"",expiry:""}]};
+let formExtra={micro:"",blood:"",cond:"china"};
+let formBreed={sel:"",extra:""};
+let formCosts=[];
+let formCountry={origin:{sel:"",extra:""},dest:{sel:"",extra:""}};
+
+/* ============================ HELPERS ============================ */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid=()=>"j"+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+function todayStr(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+function parseD(s){if(!s||!/^\d{4}-\d{2}-\d{2}$/.test(s))return null;const p=s.split("-").map(Number);const d=new Date(Date.UTC(p[0],p[1]-1,p[2]));return isNaN(d)?null:d;}
+function daysBetween(a,b){if(!a||!b)return null;return Math.round((a-b)/86400000);}
+function toBE(s){const d=parseD(s);if(!d)return"";return d.getUTCDate()+" "+TH_MON[d.getUTCMonth()]+" "+(d.getUTCFullYear()+543);}
+function fmtCE(s){const d=parseD(s);if(!d)return"-";return d.getUTCDate()+" "+TH_MON[d.getUTCMonth()]+" "+d.getUTCFullYear();}
+function breedDisplay(p){if(!p)return"";if(p.breedMix)return (p.breed||"")+" — "+p.breedMix;return p.breed||"";}
+function money(n){n=Number(n)||0;return n.toLocaleString("en-US",{maximumFractionDigits:2})+" ฿";}
+function jobCostTotal(j){let t=0;(j.costs||[]).forEach(c=>t+=Number(c.amount)||0);return t;}
+function jobProfit(j){return (Number(j.sellPrice)||0)-jobCostTotal(j);}
+function toast(msg,type){const t=document.createElement("div");t.className="toast "+(type||"");t.textContent=msg;
+  $("#toast").appendChild(t);setTimeout(()=>{t.style.opacity="0";t.style.transition=".3s";setTimeout(()=>t.remove(),320);},2600);}
+
+/* ============================ STORAGE ============================ */
+function saveLocal(){try{localStorage.setItem(LS_KEY,JSON.stringify(DB));}catch(e){toast("บันทึกลงเครื่องไม่สำเร็จ: "+e.message,"err");}}
+function loadLocal(){
+  try{const raw=localStorage.getItem(LS_KEY);if(raw){const d=JSON.parse(raw);
+    DB.jobs=Array.isArray(d.jobs)?d.jobs:[];
+    DB.cloud=Object.assign({url:"",key:"",enabled:false},d.cloud||{});}}
+  catch(e){console.warn("load error",e);}
+}
+function getJob(id){return DB.jobs.find(j=>j.id===id);}
+function nextJobNo(){
+  const n=new Date();
+  const key=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");
+  const prefix="CV-"+key+"-";
+  let max=0;
+  DB.jobs.forEach(j=>{if(j.jobNo&&j.jobNo.indexOf(prefix)===0){const num=parseInt(j.jobNo.slice(prefix.length),10);if(num>max)max=num;}});
+  return prefix+String(max+1).padStart(3,"0");
+}
+function backfillJobNos(){
+  let changed=false;
+  DB.jobs.forEach(j=>{if(!j.recordDate){j.recordDate=j.createdAt?j.createdAt.slice(0,10):todayStr();changed=true;}});
+  const need=DB.jobs.filter(j=>!j.jobNo);
+  if(need.length){
+    need.sort((a,b)=>(a.createdAt||"").localeCompare(b.createdAt||""));
+    need.forEach(j=>{
+      const d=j.createdAt?new Date(j.createdAt):new Date();
+      const key=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+      const prefix="CV-"+key+"-";
+      let max=0;
+      DB.jobs.forEach(x=>{if(x.jobNo&&x.jobNo.indexOf(prefix)===0){const num=parseInt(x.jobNo.slice(prefix.length),10);if(num>max)max=num;}});
+      j.jobNo=prefix+String(max+1).padStart(3,"0");
+    });
+    changed=true;
+  }
+  if(changed)saveLocal();
+}
+function persistJob(job){
+  job.updatedAt=new Date().toISOString();
+  const i=DB.jobs.findIndex(j=>j.id===job.id);
+  if(i<0)DB.jobs.push(job);else DB.jobs[i]=job;
+  saveLocal();
+  if(DB.cloud.enabled)cloudUpsert(job);
+}
+function deleteJob(id){
+  DB.jobs=DB.jobs.filter(j=>j.id!==id);saveLocal();
+  if(DB.cloud.enabled)cloudDelete(id);
+}
+
+/* ------- Cloud (Supabase / Postgres SQL) ------- */
+function cloudHeaders(){return{apikey:DB.cloud.key,Authorization:"Bearer "+DB.cloud.key,"Content-Type":"application/json"};}
+function cloudBase(){
+  let u=(DB.cloud.url||"").trim().replace(/\/+$/,"").replace(/\/rest\/v1.*$/i,"");
+  return u+"/rest/v1/dashboard_jobs";
+}
+function cloudErr(e){
+  let m=(e&&e.message)||String(e);
+  if(typeof location!=="undefined"&&location.protocol==="file:")
+    m+=" — สาเหตุน่าจะเป็นเพราะเปิดไฟล์แบบ file:// เบราว์เซอร์บล็อกการเชื่อมต่อ Cloud • วิธีแก้: เปิดผ่าน Google Chrome หรือ host ไฟล์ขึ้นเว็บก่อน";
+  return m;
+}
+async function cloudUpsert(job){
+  try{await fetch(cloudBase(),{method:"POST",headers:Object.assign(cloudHeaders(),{Prefer:"resolution=merge-duplicates,return=minimal"}),
+    body:JSON.stringify([{id:job.id,data:job,updated_at:job.updatedAt}])});}
+  catch(e){console.warn("cloud upsert fail",e);}
+}
+async function cloudDelete(id){
+  try{await fetch(cloudBase()+"?id=eq."+encodeURIComponent(id),{method:"DELETE",headers:Object.assign(cloudHeaders(),{Prefer:"return=minimal"})});}
+  catch(e){console.warn("cloud delete fail",e);}
+}
+async function cloudPull(silent){
+  try{const r=await fetch(cloudBase()+"?select=id,data,updated_at",{headers:cloudHeaders()});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const rows=await r.json();let added=0,updated=0;
+    rows.forEach(row=>{const j=row.data;if(!j||!j.id)return;
+      const ex=getJob(j.id);
+      if(!ex){DB.jobs.push(j);added++;}
+      else if((row.updated_at||"")>(ex.updatedAt||"")){const i=DB.jobs.findIndex(x=>x.id===j.id);DB.jobs[i]=j;updated++;}});
+    saveLocal();
+    if(!silent)toast("ดึงข้อมูลจาก Cloud สำเร็จ — เพิ่ม "+added+" / อัปเดต "+updated,"ok");
+    return true;
+  }catch(e){if(!silent)toast("ดึงข้อมูล Cloud ไม่สำเร็จ: "+cloudErr(e),"err");return false;}
+}
+async function cloudPush(){
+  try{const body=DB.jobs.map(j=>({id:j.id,data:j,updated_at:j.updatedAt||new Date().toISOString()}));
+    const r=await fetch(cloudBase(),{method:"POST",headers:Object.assign(cloudHeaders(),{Prefer:"resolution=merge-duplicates,return=minimal"}),
+      body:JSON.stringify(body)});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    toast("ส่งข้อมูลขึ้น Cloud สำเร็จ ("+body.length+" งาน)","ok");return true;
+  }catch(e){toast("ส่งข้อมูลขึ้น Cloud ไม่สำเร็จ: "+cloudErr(e),"err");return false;}
+}
+
+/* ============================ VACCINE VALIDATION ============================ */
+function ageDaysAt(dob,d){const D=parseD(d),B=parseD(dob);if(!D||!B)return null;return daysBetween(D,B);}
+function validateVaccines(j){
+  const dir=j.vaccineDir||"";const cond=j.exportCond||"china";
+  const dob=j.pet&&j.pet.dob;const imp=parseD(j.travelDate);
+  const vax=j.vax||{combined:[],lepto:[],rabies:[]};
+  const res={rows:{combined:[],lepto:[],rabies:[]},micro:null,blood:null,extra:[]};
+
+  ["combined","lepto"].forEach(grp=>{
+    (vax[grp]||[]).forEach(v=>{
+      if(!v.date){res.rows[grp].push({ok:null,msg:"ยังไม่ระบุวันที่ฉีด"});return;}
+      if(dir!=="import"){res.rows[grp].push({ok:null,msg:"บันทึกแล้ว (เงื่อนไขตรวจเฉพาะงาน Import)"});return;}
+      const a=ageDaysAt(dob,v.date);const exp=parseD(v.expiry);const probs=[];const okm=[];
+      if(a===null)probs.push("ต้องระบุวันเกิดสัตว์เลี้ยง");
+      else if(a<60)probs.push("ฉีดตอนอายุ "+a+" วัน — ต้อง ≥ 60 วัน (2 เดือน)");
+      else okm.push("ฉีดตอนอายุ "+a+" วัน");
+      if(exp&&imp){if(exp<imp)probs.push("วัคซีนหมดอายุก่อนวันนำเข้าไทย");else okm.push("ยังไม่หมดอายุ ณ วันนำเข้า");}
+      else if(!exp)okm.push("ยังไม่ได้กรอกวันหมดอายุ");
+      res.rows[grp].push({ok:probs.length?false:(a!==null?true:null),msg:(probs.concat(okm)).join(" • ")});
+    });
+  });
+
+  const rb=vax.rabies||[];
+  rb.forEach((v,i)=>{
+    if(!v.date){res.rows.rabies.push({ok:null,msg:"ยังไม่ระบุวันที่ฉีด"});return;}
+    const a=ageDaysAt(dob,v.date);const probs=[];const okm=[];
+    if(dir==="import"){
+      const exp=parseD(v.expiry);
+      if(a===null)probs.push("ต้องระบุวันเกิดสัตว์เลี้ยง");
+      else if(a<85)probs.push("ฉีดตอนอายุ "+a+" วัน — ต้อง ≥ 85 วัน (3 เดือน)");
+      else okm.push("ฉีดตอนอายุ "+a+" วัน");
+      if(exp&&imp){if(exp<imp)probs.push("วัคซีนหมดอายุก่อนวันนำเข้าไทย");else okm.push("ยังไม่หมดอายุ ณ วันนำเข้า");}
+      else if(!exp)okm.push("ยังไม่ได้กรอกวันหมดอายุ");
+    }else if(dir==="export"){
+      if(cond==="general"){res.rows.rabies.push({ok:null,msg:"บันทึกแล้ว (ปลายทางทั่วไป — ไม่ตรวจเงื่อนไข)"});return;}
+      if(i===0){
+        if(a===null)probs.push("ต้องระบุวันเกิดสัตว์เลี้ยง");
+        else if(a<85)probs.push("เข็มแรกฉีดตอนอายุ "+a+" วัน — ต้อง ≥ 85 วัน (3 เดือน)");
+        else okm.push("เข็มแรก • อายุ "+a+" วัน");
+      }else{
+        const prev=parseD(rb[i-1].date);
+        if(prev){const gap=daysBetween(parseD(v.date),prev);
+          if(cond==="china"&&gap<30)probs.push("ห่างจากเข็มก่อนหน้า "+gap+" วัน — จีนต้อง ≥ 30 วัน");
+          else okm.push("ห่างจากเข็มก่อนหน้า "+gap+" วัน");
+        }else probs.push("เข็มก่อนหน้ายังไม่ระบุวันที่");
+      }
+    }else{res.rows.rabies.push({ok:null,msg:"เลือกทิศทางงาน (Import/Export) ก่อน"});return;}
+    res.rows.rabies.push({ok:probs.length?false:(a!==null||i>0?true:null),msg:(probs.concat(okm)).join(" • ")});
+  });
+
+  if(dir==="export"){
+    if(cond==="general"){
+      res.micro=j.microchipDate?{ok:null,msg:"บันทึกแล้ว (ไม่ตรวจเงื่อนไข)"}:{ok:null,msg:"ยังไม่ระบุวันที่ฝังไมโครชิพ"};
+      res.blood=j.bloodDate?{ok:null,msg:"บันทึกแล้ว (ไม่ตรวจเงื่อนไข)"}:{ok:null,msg:"ยังไม่ระบุวันที่เจาะเลือด"};
+    }else{
+      const mc=parseD(j.microchipDate);const r0=parseD(rb[0]&&rb[0].date);
+      if(!mc)res.micro={ok:null,msg:"ยังไม่ระบุวันที่ฝังไมโครชิพ"};
+      else if(!r0)res.micro={ok:null,msg:"ยังไม่ระบุวัคซีนพิษสุนัขบ้าเข็มแรก"};
+      else if(cond==="china"){const ok=daysBetween(mc,r0)<=0;
+        res.micro={ok,msg:ok?"ฝังก่อน/วันเดียวกับวัคซีนพิษสุนัขบ้าเข็มแรก ✓":"จีน: ไมโครชิพต้องฝังก่อนหรือวันเดียวกับวัคซีนพิษสุนัขบ้าเข็มแรก"};}
+      else{const ok=daysBetween(mc,r0)>=0;
+        res.micro={ok,msg:ok?"ฝังหลัง/วันเดียวกับวัคซีนพิษสุนัขบ้าเข็มแรก ✓":"EU: ไมโครชิพต้องฝังหลังวัคซีนพิษสุนัขบ้าเข็มแรก"};}
+
+      const bd=parseD(j.bloodDate);
+      if(cond==="china"){
+        const r2=parseD(rb[1]&&rb[1].date);
+        if(!bd)res.blood={ok:null,msg:"ยังไม่ระบุวันที่เจาะเลือด"};
+        else if(!r2)res.blood={ok:null,msg:"จีนต้องมีวัคซีนพิษสุนัขบ้าครบ 2 เข็มก่อน"};
+        else{const ok=daysBetween(bd,r2)>0;res.blood={ok,msg:ok?"เจาะเลือดหลังวัคซีนเข็มที่ 2 ✓":"จีน: ต้องเจาะเลือดหลังวัคซีนพิษสุนัขบ้าเข็มที่ 2"};}
+        if(rb.length<2)res.extra.push({ok:false,msg:"จีน: ต้องฉีดวัคซีนพิษสุนัขบ้า 2 เข็ม (ห่างกัน ≥ 30 วัน)"});
+      }else{
+        res.blood=bd?{ok:true,msg:"บันทึกวันที่เจาะเลือดแล้ว"}:{ok:null,msg:"ยังไม่ระบุวันที่เจาะเลือด"};
+        if(rb.length<1||!rb[0].date)res.extra.push({ok:false,msg:"EU: ต้องฉีดวัคซีนพิษสุนัขบ้า 1 เข็ม"});
+      }
+    }
+  }
+  return res;
+}
+function vaxOverall(res){
+  let any=false,fail=false;
+  Object.values(res.rows).forEach(arr=>arr.forEach(r=>{if(r.ok===false)fail=true;if(r.ok===true)any=true;}));
+  [res.micro,res.blood].forEach(r=>{if(r){if(r.ok===false)fail=true;if(r.ok===true)any=true;}});
+  res.extra.forEach(r=>{if(r.ok===false)fail=true;});
+  if(fail)return false;if(any)return true;return null;
+}
+
+/* ============================ PROGRESS ============================ */
+function jobItems(job){const t=JOB_TYPES[job.jobType];return{docs:t.docs||[],steps:t.steps||[]};}
+function progressOf(job){
+  const it=jobItems(job);let done=0,total=0;
+  ["docs","steps"].forEach(k=>{it[k].forEach((_,i)=>{total++;const c=job.checklist&&job.checklist[k]&&job.checklist[k][i];if(c&&c.done)done++;});});
+  if(isClosed(job))return{done:total,total:total,pct:100};
+  return{done,total,pct:total?Math.round(done/total*100):0};
+}
+function isClosed(job){
+  const steps=jobItems(job).steps;
+  if(!steps.length)return false;
+  const c=job.checklist&&job.checklist.steps&&job.checklist.steps[steps.length-1];
+  return !!(c&&c.done);
+}
+
+/* ============================ RENDER: NAV ============================ */
+function renderNav(){
+  let h='<div class="nav-sec">หน้าหลัก</div>';
+  h+=navItem("dashboard","📊","ภาพรวมทั้งหมด",DB.jobs.length);
+  h+=navItem("new","➕","บันทึกงานใหม่",null);
+  h+='<div class="nav-sec">แท็บงานตามประเภท</div>';
+  TYPE_ORDER.forEach(k=>{const t=JOB_TYPES[k];const c=DB.jobs.filter(j=>j.jobType===k).length;
+    h+=navItem("job:"+k,t.icon,t.label,c);});
+  h+='<div class="nav-sec">ระบบ</div>';
+  h+=navItem("settings","⚙️","ตั้งค่า / สำรองข้อมูล",null);
+  $("#nav").innerHTML=h;
+}
+function navItem(view,ic,label,cnt){
+  const active=STATE.view===view?" active":"";
+  const badge=cnt!=null?'<span class="cnt">'+cnt+'</span>':"";
+  return '<div class="nav-item'+active+'" data-act="nav" data-view="'+view+'"><span class="ic">'+ic+'</span><span>'+esc(label)+'</span>'+badge+'</div>';
+}
+
+/* ============================ RENDER: ROUTER ============================ */
+function render(){
+  renderNav();
+  $("#modePill").className="pill "+(DB.cloud.enabled?"on":"off");
+  $("#modePill").textContent=DB.cloud.enabled?"☁ Cloud Sync":"💾 Local";
+  const v=STATE.view;
+  if(v==="dashboard"){setTitle("ภาพรวมทั้งหมด","สรุปสถานะงานทุกประเภทในที่เดียว");renderDashboard();}
+  else if(v==="new"){setTitle(STATE.editId?"แก้ไขงาน":"บันทึกงานใหม่","กรอกข้อมูลลูกค้า สัตว์เลี้ยง และวัคซีน");renderForm();}
+  else if(v==="settings"){setTitle("ตั้งค่า / สำรองข้อมูล","จัดการการเก็บข้อมูลและ Cloud Sync");renderSettings();}
+  else if(v.startsWith("job:")){const k=v.slice(4);const t=JOB_TYPES[k];
+    setTitle(t.icon+" "+t.label,"จัดการ checklist และสถานะของงานประเภทนี้");renderJobTab(k);}
+}
+function setTitle(t,s){$("#pageTitle").textContent=t;$("#pageSub").textContent=s||"";}
+
+/* ============================ RENDER: DASHBOARD ============================ */
+function renderDashboard(){
+  const jobs=DB.jobs;
+  const total=jobs.length;
+  const closed=jobs.filter(isClosed).length;
+  const prog=total-closed;
+  const unpaid=jobs.filter(j=>!j.paid).length;
+  let h='<div class="stat-grid">';
+  h+=statCard("b1","งานทั้งหมด",total);
+  h+=statCard("b2","กำลังดำเนินการ",prog);
+  h+=statCard("b3","ปิดจ๊อบแล้ว",closed);
+  h+=statCard("b4","ค้างชำระเงิน",unpaid);
+  h+='</div>';
+
+  // filters
+  const f=STATE.filters;
+  h+='<div class="filters">';
+  h+=fldSelect("ประเภทงาน","f_type",[["","ทุกประเภท"]].concat(TYPE_ORDER.map(k=>[k,JOB_TYPES[k].label])),f.f_type);
+  h+=fldInput("ค้นหาชื่อลูกค้า","f_name","text",f.f_name,"พิมพ์ชื่อ...");
+  h+=fldSelect("กรองตามวันที่","f_datefield",[["travel","วันเดินทาง"],["record","วันที่บันทึกงาน"]],f.f_datefield||"travel");
+  h+=fldInput("ตั้งแต่วันที่","f_from","date",f.f_from);
+  h+=fldInput("ถึงวันที่","f_to","date",f.f_to);
+  h+=fldSelect("สถานะเงิน","f_paid",[["","ทั้งหมด"],["paid","จ่ายแล้ว"],["unpaid","ค้างจ่าย"]],f.f_paid);
+  h+=fldSelect("สถานะงาน","f_stat",[["","ทั้งหมด"],["open","กำลังทำ"],["closed","ปิดจ๊อบแล้ว"]],f.f_stat);
+  h+='<button class="btn sm" data-act="clearfilter">ล้างตัวกรอง</button>';
+  h+='</div>';
+
+  let list=applyFilters(jobs,f);
+  list.sort((a,b)=>(b.travelDate||"").localeCompare(a.travelDate||""));
+
+  if(!list.length){h+='<div class="empty"><div class="big">📭</div>ยังไม่มีงานที่ตรงกับเงื่อนไข<br><button class="btn primary" style="margin-top:12px" data-act="nav" data-view="new">+ บันทึกงานใหม่</button></div>';}
+  else{
+    h+='<div class="tbl-wrap"><table><thead><tr>'+
+      '<th>เลขที่งาน</th><th>ประเภทงาน</th><th>ลูกค้า</th><th>สัตว์เลี้ยง</th><th>เส้นทาง</th><th>วันเดินทาง</th>'+
+      '<th>ความคืบหน้า</th><th>วัคซีน</th><th>เงิน</th><th>สถานะ</th><th></th></tr></thead><tbody>';
+    list.forEach(j=>{
+      const t=JOB_TYPES[j.jobType];const p=progressOf(j);
+      h+='<tr>';
+      h+='<td><b style="color:var(--brand-d)">'+esc(j.jobNo||"-")+'</b></td>';
+      h+='<td><span class="badge bg-type">'+t.icon+" "+esc(t.label)+'</span></td>';
+      h+='<td><b>'+esc(j.customerName||"-")+'</b><div class="mini">'+esc(j.customerPhone||"")+'</div></td>';
+      h+='<td>'+esc((j.pet&&j.pet.name)||"-")+'<div class="mini">'+esc(breedDisplay(j.pet))+'</div></td>';
+      h+='<td>'+esc(j.originCountry||"?")+" → "+esc(j.destCountry||"?")+'</td>';
+      h+='<td>'+fmtCE(j.travelDate)+'<div class="mini">'+(toBE(j.travelDate)||"")+'</div></td>';
+      h+='<td>'+progressBar(p)+'</td>';
+      h+='<td>'+vaxBadge(j)+'</td>';
+      h+='<td>'+(j.paid?'<span class="badge bg-paid">จ่ายแล้ว</span>':'<span class="badge bg-unpaid">ค้างจ่าย</span>')+'</td>';
+      h+='<td>'+(isClosed(j)?'<span class="badge bg-closed">ปิดจ๊อบ</span>':'<span class="badge bg-prog">กำลังทำ</span>')+'</td>';
+      h+='<td><div class="row-actions">'+
+        '<button class="btn sm ghost" data-act="pdf" data-id="'+j.id+'" title="สร้างรายงาน PDF">🖨</button>'+
+        '<button class="btn sm ghost" data-act="open" data-id="'+j.id+'" title="เปิดแท็บงาน">↗</button>'+
+        '<button class="btn sm ghost" data-act="edit" data-id="'+j.id+'" title="แก้ไข">✏️</button>'+
+        '<button class="btn sm ghost" data-act="del" data-id="'+j.id+'" title="ลบ">🗑</button></div></td>';
+      h+='</tr>';
+    });
+    h+='</tbody></table></div>';
+    h+='<div class="mini" style="margin-top:8px">แสดง '+list.length+' จาก '+jobs.length+' งาน</div>';
+  }
+  $("#content").innerHTML=h;
+}
+function statCard(cls,lbl,val){return '<div class="stat '+cls+'"><div class="lbl">'+lbl+'</div><div class="val">'+val+'</div></div>';}
+function progressBar(p){return '<div class="pwrap"><div class="pbar"><i style="width:'+p.pct+'%"></i></div><span>'+p.done+'/'+p.total+'</span></div>';}
+function vaxBadge(j){
+  if(!j.vax||!j.vaccineDir)return '<span class="chip-na">—</span>';
+  if(j.vaccineDir==="export"&&j.exportCond==="general")return '<span class="chip-na">— ทั่วไป</span>';
+  const o=vaxOverall(validateVaccines(j));
+  if(o===true)return '<span class="chip-ok">✓ ผ่าน</span>';
+  if(o===false)return '<span class="chip-no">✗ ไม่ผ่าน</span>';
+  return '<span class="chip-na">— รอข้อมูล</span>';
+}
+
+/* ============================ FILTERS ============================ */
+function applyFilters(jobs,f){
+  return jobs.filter(j=>{
+    if(f.f_type&&j.jobType!==f.f_type)return false;
+    if(f.f_name&&!(j.customerName||"").toLowerCase().includes(f.f_name.toLowerCase()))return false;
+    const _df=f.f_datefield==="record"?(j.recordDate||""):(j.travelDate||"");
+    if(f.f_from&&_df<f.f_from)return false;
+    if(f.f_to&&_df>f.f_to)return false;
+    if(f.f_paid==="paid"&&!j.paid)return false;
+    if(f.f_paid==="unpaid"&&j.paid)return false;
+    if(f.f_stat==="closed"&&!isClosed(j))return false;
+    if(f.f_stat==="open"&&isClosed(j))return false;
+    return true;
+  });
+}
+function fldInput(lbl,key,type,val,ph){
+  return '<div class="fld"><label>'+lbl+'</label><input type="'+type+'" data-act="filter" data-key="'+key+'" value="'+esc(val||"")+'" placeholder="'+(ph||"")+'"></div>';
+}
+function fldSelect(lbl,key,opts,val){
+  let o=opts.map(p=>'<option value="'+esc(p[0])+'"'+(val===p[0]?" selected":"")+'>'+esc(p[1])+'</option>').join("");
+  return '<div class="fld"><label>'+lbl+'</label><select data-act="filter" data-key="'+key+'">'+o+'</select></div>';
+}
+
+/* ============================ RENDER: JOB TAB (matrix) ============================ */
+function renderJobTab(typeKey){
+  const t=JOB_TYPES[typeKey];const f=STATE.filters;
+  let h='<div class="filters">';
+  h+=fldInput("ค้นหาชื่อลูกค้า","f_name","text",f.f_name,"พิมพ์ชื่อ...");
+  h+=fldSelect("กรองตามวันที่","f_datefield",[["travel","วันเดินทาง"],["record","วันที่บันทึกงาน"]],f.f_datefield||"travel");
+  h+=fldInput("ตั้งแต่วันที่","f_from","date",f.f_from);
+  h+=fldInput("ถึงวันที่","f_to","date",f.f_to);
+  h+=fldSelect("สถานะเงิน","f_paid",[["","ทั้งหมด"],["paid","จ่ายแล้ว"],["unpaid","ค้างจ่าย"]],f.f_paid);
+  h+=fldSelect("สถานะงาน","f_stat",[["","ทั้งหมด"],["open","กำลังทำ"],["closed","ปิดจ๊อบแล้ว"]],f.f_stat);
+  h+='<button class="btn sm" data-act="clearfilter">ล้างตัวกรอง</button>';
+  h+='<button class="btn sm primary" data-act="nav" data-view="new">+ เพิ่มงาน '+esc(t.label)+'</button>';
+  h+='</div>';
+
+  let list=applyFilters(DB.jobs.filter(j=>j.jobType===typeKey),f);
+  list.sort((a,b)=>(b.travelDate||"").localeCompare(a.travelDate||""));
+
+  if(!list.length){
+    h+='<div class="empty"><div class="big">'+t.icon+'</div>ยังไม่มีงาน '+esc(t.label)+'<br>'+
+       '<button class="btn primary" style="margin-top:12px" data-act="nav" data-view="new">+ บันทึกงานใหม่</button></div>';
+    $("#content").innerHTML=h;return;
+  }
+
+  const docs=t.docs||[],steps=t.steps||[];
+  h+='<div class="hint">💡 คลิกวงกลมเพื่อเปลี่ยนสถานะ <b>เทา = ยังไม่ทำ</b> → <b style="color:#16a34a">เขียว = ทำแล้ว</b> • ช่องวันที่ใต้ปุ่มใช้ระบุวันที่ของแต่ละขั้นตอน • ตารางเลื่อนซ้าย-ขวาได้</div>';
+  h+='<div class="tbl-wrap"><table class="mx"><thead>';
+  // group header row
+  h+='<tr><th class="sticky-l" rowspan="2">ลูกค้า / สัตว์เลี้ยง</th>'+
+     '<th rowspan="2">วันเดินทาง</th><th rowspan="2">เงิน</th><th rowspan="2">คืบหน้า</th><th rowspan="2">จัดการ</th>';
+  if(docs.length)h+='<th class="grp docs" colspan="'+docs.length+'">📄 เอกสารที่ได้รับ</th>';
+  h+='<th class="grp steps" colspan="'+steps.length+'">✅ ขั้นตอนการทำงาน</th></tr>';
+  // sub header
+  h+='<tr>';
+  docs.forEach((d,i)=>h+='<th class="sc'+(i===0?" firstdoc":"")+'">'+esc(d)+'</th>');
+  steps.forEach((s,i)=>h+='<th class="sc'+(i===0?" firststep":"")+'">'+(i+1)+". "+esc(s)+'</th>');
+  h+='</tr></thead><tbody>';
+
+  list.forEach(j=>{
+    const p=progressOf(j);
+    h+='<tr>';
+    h+='<td class="sticky-l"><div class="mini" style="color:var(--brand-d);font-weight:700">'+esc(j.jobNo||"-")+'</div>'+
+       '<b>'+esc(j.customerName||"-")+'</b>'+
+       '<div class="mini">🐾 '+esc((j.pet&&j.pet.name)||"-")+' • '+esc(j.originCountry||"?")+"→"+esc(j.destCountry||"?")+'</div></td>';
+    h+='<td>'+fmtCE(j.travelDate)+'<div class="mini">'+(toBE(j.travelDate)||"")+'</div></td>';
+    h+='<td><button class="btn sm '+(j.paid?"":"")+'" data-act="paid" data-id="'+j.id+'">'+
+       (j.paid?'<span class="badge bg-paid">จ่ายแล้ว</span>':'<span class="badge bg-unpaid">ค้างจ่าย</span>')+'</button></td>';
+    h+='<td>'+progressBar(p)+'</td>';
+    h+='<td><div class="row-actions">'+
+       '<button class="btn sm ghost" data-act="pdf" data-id="'+j.id+'" title="สร้างรายงาน PDF">🖨</button>'+
+       '<button class="btn sm ghost" data-act="edit" data-id="'+j.id+'" title="แก้ไข">✏️</button>'+
+       '<button class="btn sm ghost" data-act="del" data-id="'+j.id+'" title="ลบ">🗑</button></div></td>';
+    docs.forEach((d,i)=>h+=statusCell(j,"docs",i,i===0?"firstdoc":""));
+    steps.forEach((s,i)=>h+=statusCell(j,"steps",i,i===0?"firststep":""));
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  h+='<div class="mini" style="margin-top:8px">แสดง '+list.length+' งาน</div>';
+  $("#content").innerHTML=h;
+}
+function statusCell(job,kind,idx,extra){
+  const c=(job.checklist&&job.checklist[kind]&&job.checklist[kind][idx])||{done:false,date:""};
+  return '<td class="sc '+extra+'">'+
+    '<button class="dot'+(c.done?" done":"")+'" data-act="toggle" data-id="'+job.id+'" data-kind="'+kind+'" data-idx="'+idx+'">'+(c.done?"✓":"")+'</button>'+
+    '<br><input type="date" class="cd'+(c.date?" has":"")+'" value="'+esc(c.date||"")+'" data-act="setdate" data-id="'+job.id+'" data-kind="'+kind+'" data-idx="'+idx+'" title="ระบุวันที่ทำขั้นตอนนี้">'+
+    '</td>';
+}
+
+/* ============================ RENDER: FORM ============================ */
+function renderForm(){
+  const editing=STATE.editId?getJob(STATE.editId):null;
+  const j=editing||{};
+  const pet=j.pet||{};
+  if(editing&&editing.vax){formVax={
+    combined:(editing.vax.combined||[]).map(x=>({date:x.date||"",expiry:x.expiry||""})),
+    lepto:(editing.vax.lepto||[]).map(x=>({date:x.date||"",expiry:x.expiry||""})),
+    rabies:(editing.vax.rabies||[]).map(x=>({date:x.date||"",expiry:x.expiry||""}))};
+    ["combined","lepto","rabies"].forEach(g=>{if(!formVax[g].length)formVax[g]=[{date:"",expiry:""}];});
+  }else if(!editing){formVax={combined:[{date:"",expiry:""}],lepto:[{date:"",expiry:""}],rabies:[{date:"",expiry:""}]};}
+
+  const initType=j.jobType||TYPE_ORDER[0];
+  const dir=j.vaccineDir||JOB_TYPES[initType].dir||"";
+  formExtra={micro:j.microchipDate||"",blood:j.bloodDate||"",cond:j.exportCond||"china"};
+  (function(){var sp0=pet.species||"",l0=sp0==="สุนัข"?DOG_BREEDS:sp0==="แมว"?CAT_BREEDS:[];
+    if(pet.breedMix){formBreed={sel:MIXED_BREED,extra:pet.breedMix};}
+    else if(pet.breed){formBreed=(!sp0||l0.indexOf(pet.breed)>=0)?{sel:pet.breed,extra:""}:{sel:OTHER_BREED,extra:pet.breed};}
+    else{formBreed={sel:"",extra:""};}})();
+  formCosts=(j.costs||[]).map(c=>({cat:c.cat||"",amount:(c.amount==null||c.amount==="")?"":String(c.amount)}));
+  ["origin","dest"].forEach(w=>{const v=(w==="origin"?j.originCountry:j.destCountry)||"";
+    formCountry[w]=!v?{sel:"",extra:""}:(COUNTRIES.indexOf(v)>=0?{sel:v,extra:""}:{sel:OTHER_COUNTRY,extra:v});});
+  let h='';
+  if(editing)h+='<div class="hint">✏️ กำลังแก้ไขงานเดิม — กด "บันทึก" เพื่ออัปเดต</div>';
+
+  /* customer */
+  h+='<div class="form-card"><h3>👤 ข้อมูลลูกค้า & งาน'+
+     '<span style="margin-left:auto;font-size:12px;font-weight:700;color:var(--brand-d)">'+
+     (editing?("เลขที่งาน: "+esc(j.jobNo||"-")):"เลขที่งาน: ออกอัตโนมัติเมื่อบันทึก")+'</span></h3>';
+  h+='<div class="form-grid">';
+  h+=field("ชื่อลูกค้า","f-cname","text",j.customerName,true);
+  h+=field("เบอร์โทรศัพท์","f-cphone","tel",j.customerPhone);
+  h+='<div class="f" id="originBox"></div>';
+  h+='<div class="f" id="destBox"></div>';
+  h+='<div class="f"><label>ประเภทงาน <span class="req">*</span></label><select id="f-jtype" data-act="jtype">'+
+    TYPE_ORDER.map(k=>'<option value="'+k+'"'+(j.jobType===k?" selected":"")+'>'+JOB_TYPES[k].icon+" "+esc(JOB_TYPES[k].label)+'</option>').join("")+
+    '</select></div>';
+  h+='<div class="f wide"><label>ทิศทางงาน (สำหรับวันเดินทาง & ตรวจวัคซีน) <span class="req">*</span></label>'+
+    '<div class="radio-row" id="dirRow">'+
+    '<label class="'+(dir==="import"?"on":"")+'"><input type="radio" name="dir" value="import" data-act="vaxctx"'+(dir==="import"?" checked":"")+'> Import (เข้าไทย)</label>'+
+    '<label class="'+(dir==="export"?"on":"")+'"><input type="radio" name="dir" value="export" data-act="vaxctx"'+(dir==="export"?" checked":"")+'> Export (ออกจากไทย)</label>'+
+    '</div></div>';
+  h+='<div class="f"><label id="travelLbl">วันเดินทาง</label>'+
+    '<input type="date" id="f-travel" value="'+esc(j.travelDate||"")+'" data-act="vaxctx"><div class="be" id="be-travel"></div></div>';
+  h+='<div class="f"><label>วันที่บันทึกงาน (ค.ศ.)</label>'+
+    '<input type="date" id="f-record" value="'+esc(j.recordDate||(editing?"":todayStr()))+'" data-act="recin">'+
+    '<div class="be" id="be-record"></div>'+
+    '<div class="mini" style="margin-top:1px">คีย์งานย้อนหลังให้แก้วันที่นี้เป็นวันที่ทำงานจริง</div></div>';
+  h+='</div></div>';
+
+  /* pet */
+  h+='<div class="form-card"><h3>🐾 รายละเอียดสัตว์เลี้ยง</h3><div class="form-grid">';
+  h+=field("ชื่อสัตว์เลี้ยง","f-pname","text",pet.name);
+  h+=field("หมายเลขไมโครชิพ","f-pchip","text",pet.microchip);
+  h+=field("สี","f-pcolor","text",pet.color);
+  h+='<div class="f"><label>เพศ</label><select id="f-psex">'+
+    ["","ผู้","เมีย"].map(o=>'<option'+(pet.sex===o?" selected":"")+'>'+o+'</option>').join("")+'</select></div>';
+  h+='<div class="f"><label>วันเดือนปีเกิด (ค.ศ.)</label>'+
+    '<input type="date" id="f-pdob" value="'+esc(pet.dob||"")+'" data-act="vaxctx"><div class="be" id="be-pdob"></div></div>';
+  h+='<div class="f"><label>ประเภท</label><select id="f-pspecies" data-act="speciessel">'+
+    ["","สุนัข","แมว"].map(o=>'<option value="'+o+'"'+(pet.species===o?" selected":"")+'>'+(o||"— เลือกประเภท —")+'</option>').join("")+'</select></div>';
+  h+='<div class="f" id="breedBox"></div>';
+  h+='</div></div>';
+
+  /* vaccine */
+  h+='<div class="form-card"><h3>💉 รายละเอียดวัคซีน</h3>';
+  h+='<div id="vaxConfig"></div>';
+  h+='<div id="vaxBody"></div>';
+  h+='<div id="vaxResult"></div>';
+  h+='</div>';
+
+  /* finance */
+  h+='<div class="form-card"><h3>💰 การเงิน (Finance)</h3>';
+  h+='<div class="form-grid"><div class="f"><label>ราคาขายลูกค้า (บาท)</label>'+
+    '<input type="number" id="f-sell" min="0" step="1" value="'+esc(j.sellPrice!=null?j.sellPrice:"")+'" data-act="finin" placeholder="0"></div></div>';
+  h+='<div style="margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+
+    '<label style="font-size:12px;font-weight:700;color:#334155">รายการต้นทุน</label>'+
+    '<button class="btn sm" data-act="addcost">+ เพิ่มรายการต้นทุน</button></div>';
+  h+='<div id="costBox" style="margin-top:9px"></div>';
+  h+='<div id="finSummary" style="margin-top:14px"></div>';
+  h+='<div class="f" style="margin-top:16px"><label>สถานะการเงิน</label>'+
+    '<div class="radio-row" id="payRow">'+
+    '<label class="'+(j.paid?"":"on")+'"><input type="radio" name="paystat" value="unpay" data-act="payradio"'+(j.paid?"":" checked")+'> ⏳ Un-Pay (ยังไม่ได้รับเงิน)</label>'+
+    '<label class="'+(j.paid?"on":"")+'"><input type="radio" name="paystat" value="pay" data-act="payradio"'+(j.paid?" checked":"")+'> ✅ Pay (รับเงินแล้ว)</label>'+
+    '</div></div>';
+  h+='<div class="f" id="payDateWrap" style="margin-top:11px;max-width:300px;display:'+(j.paid?"flex":"none")+'">'+
+    '<label>วันที่ได้รับเงิน (ค.ศ.)</label>'+
+    '<input type="date" id="f-paiddate" value="'+esc(j.paidDate||"")+'" data-act="finin">'+
+    '<div class="be" id="be-paiddate"></div></div>';
+  h+='</div>';
+
+  h+=field("หมายเหตุเพิ่มเติม","f-notes","textarea",j.notes);
+  h+='<div style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap">'+
+    '<button class="btn primary" data-act="savejob">'+(editing?"💾 บันทึกการแก้ไข":"💾 บันทึกงาน")+'</button>'+
+    (editing?'<button class="btn" data-act="pdf" data-id="'+esc(STATE.editId)+'">🖨 สร้างรายงาน PDF</button>':'')+
+    '<button class="btn" data-act="nav" data-view="dashboard">ยกเลิก</button></div>';
+
+  $("#content").innerHTML=h;
+  paintCountry("origin");
+  paintCountry("dest");
+  paintBreed();
+  paintCosts();
+  refreshFinance();
+  paintVaxConfig();
+  paintVax();
+  refreshVax();
+  updateTravelLbl();
+}
+function paintCosts(){
+  const box=$("#costBox");if(!box)return;
+  let h='';
+  if(!formCosts.length){h='<div class="mini" style="padding:4px 0">ยังไม่มีรายการต้นทุน — กดปุ่ม "+ เพิ่มรายการต้นทุน"</div>';}
+  formCosts.forEach((c,i)=>{
+    h+='<div class="cost-row">'+
+      '<select data-act="costin" data-i="'+i+'" data-f="cat">'+
+        '<option value="">— เลือกรายการต้นทุน —</option>'+
+        COST_CATS.map(o=>'<option value="'+esc(o)+'"'+(c.cat===o?" selected":"")+'>'+esc(o)+'</option>').join("")+
+      '</select>'+
+      '<input type="number" min="0" step="1" placeholder="จำนวนเงิน (บาท)" value="'+esc(c.amount)+'" data-act="costin" data-i="'+i+'" data-f="amount">'+
+      '<button class="cost-rm" data-act="rmcost" data-i="'+i+'" title="ลบรายการ">✕</button>'+
+    '</div>';
+  });
+  box.innerHTML=h;
+}
+function refreshFinance(){
+  const sellEl=$("#f-sell");
+  const sell=sellEl?(parseFloat(sellEl.value)||0):0;
+  let total=0;formCosts.forEach(c=>{total+=parseFloat(c.amount)||0;});
+  const profit=sell-total;
+  const el=$("#finSummary");
+  if(el){
+    el.innerHTML='<div class="fin-sum">'+
+      '<div><span>ราคาขายลูกค้า</span><b>'+money(sell)+'</b></div>'+
+      '<div><span>รวมต้นทุน ('+formCosts.length+' รายการ)</span><b style="color:#dc2626">- '+money(total)+'</b></div>'+
+      '<div class="fin-profit'+(profit<0?" neg":"")+'"><span>กำไรสุทธิ</span><b>'+money(profit)+'</b></div>'+
+      '</div>';
+  }
+  const bd=$("#be-paiddate"),pd=$("#f-paiddate");
+  if(bd)bd.textContent=(pd&&pd.value)?("พ.ศ. "+toBE(pd.value)):"";
+}
+function updateTravelLbl(){const tl=$("#travelLbl");if(!tl)return;const d=getDir();
+  tl.textContent=d==="import"?"วันเดินทางเข้าประเทศไทย":d==="export"?"วันเดินทางออกจากประเทศไทย":"วันเดินทาง";}
+function syncExtraFromDOM(){const m=$("#f-micro"),b=$("#f-blood"),c=$("#f-cond");
+  if(m)formExtra.micro=m.value;if(b)formExtra.blood=b.value;if(c)formExtra.cond=c.value;}
+function syncBreedFromDOM(){
+  const sel=$("#f-pbreed"),free=$("#f-pbreed-free"),extra=$("#f-pbreed-extra");
+  if(sel)formBreed.sel=sel.value;
+  if(free)formBreed.sel=free.value;
+  if(extra)formBreed.extra=extra.value;
+}
+function paintBreed(){
+  const box=$("#breedBox");if(!box)return;
+  syncBreedFromDOM();
+  const sp=$("#f-pspecies")?$("#f-pspecies").value:"";
+  const list=sp==="สุนัข"?DOG_BREEDS:sp==="แมว"?CAT_BREEDS:[];
+  let h='<label>สายพันธุ์</label>';
+  if(!sp){
+    h+='<input type="text" id="f-pbreed-free" value="'+esc(formBreed.sel)+'" placeholder="เลือกประเภท (สุนัข/แมว) เพื่อดูรายการ หรือพิมพ์เอง">';
+  }else{
+    let sel=formBreed.sel;
+    if(!(sel===""||sel===MIXED_BREED||sel===OTHER_BREED||list.indexOf(sel)>=0)){sel="";formBreed.sel="";}
+    const opts=[""].concat(list,[MIXED_BREED,OTHER_BREED]);
+    h+='<select id="f-pbreed" data-act="breedsel">'+
+      opts.map(o=>'<option value="'+esc(o)+'"'+(o===sel?" selected":"")+'>'+esc(o||"— เลือกสายพันธุ์ —")+'</option>').join("")+'</select>';
+    if(sel===MIXED_BREED){
+      h+='<label style="margin-top:8px">ระบุสายพันธุ์ที่ผสม</label>'+
+         '<input type="text" id="f-pbreed-extra" value="'+esc(formBreed.extra)+'" placeholder="เช่น Poodle x Pomeranian">';
+    }else if(sel===OTHER_BREED){
+      h+='<label style="margin-top:8px">ระบุสายพันธุ์ (format: English (ไทย))</label>'+
+         '<input type="text" id="f-pbreed-extra" value="'+esc(formBreed.extra)+'" placeholder="เช่น Spitz (สปิตซ์)">';
+    }
+  }
+  box.innerHTML=h;
+}
+function syncCountryFromDOM(which){
+  const sel=$("#f-"+which+"-sel"),extra=$("#f-"+which+"-extra");
+  if(sel)formCountry[which].sel=sel.value;
+  if(extra)formCountry[which].extra=extra.value;
+}
+function resolveCountry(which){
+  const s=formCountry[which];
+  return s.sel===OTHER_COUNTRY?(s.extra||"").trim():(s.sel||"").trim();
+}
+function paintCountry(which){
+  const box=$("#"+which+"Box");if(!box)return;
+  syncCountryFromDOM(which);
+  const st=formCountry[which];
+  const lbl=which==="origin"?"ประเทศต้นทาง":"ประเทศปลายทาง";
+  let h='<label>'+lbl+'</label>';
+  h+='<select id="f-'+which+'-sel" data-act="countrysel" data-which="'+which+'">'+
+     '<option value="">— เลือกประเทศ —</option>'+
+     COUNTRIES.map(o=>'<option value="'+esc(o)+'"'+(st.sel===o?" selected":"")+'>'+esc(o)+'</option>').join("")+
+     '<option value="'+esc(OTHER_COUNTRY)+'"'+(st.sel===OTHER_COUNTRY?" selected":"")+'>'+esc(OTHER_COUNTRY)+'</option>'+
+     '</select>';
+  if(st.sel===OTHER_COUNTRY){
+    h+='<input type="text" id="f-'+which+'-extra" value="'+esc(st.extra)+'" placeholder="ระบุชื่อประเทศ เช่น บราซิล (Brazil)" style="margin-top:7px">';
+  }
+  box.innerHTML=h;
+}
+function field(lbl,id,type,val,req){
+  const r=req?' <span class="req">*</span>':'';
+  if(type==="textarea")return '<div class="form-card" style="margin-bottom:18px"><div class="f"><label>'+lbl+r+'</label><textarea id="'+id+'" rows="2">'+esc(val||"")+'</textarea></div></div>';
+  return '<div class="f"><label>'+lbl+r+'</label><input type="'+type+'" id="'+id+'" value="'+esc(val||"")+'"></div>';
+}
+function paintVaxConfig(){
+  syncExtraFromDOM();
+  const dir=getDir();
+  let h='';
+  if(!dir){h='<div class="hint">⚠️ เลือก <b>ทิศทางงาน (Import / Export)</b> ด้านบนก่อน เพื่อแสดงเงื่อนไขตรวจวัคซีนที่ถูกต้อง</div>';}
+  else if(dir==="import"){
+    h='<div class="hint" style="background:#eff6ff;border-color:#bfdbfe;color:#1e40af">📥 โหมด <b>Import (นำเข้าไทย)</b> — ตรวจเงื่อนไข: วัคซีนรวม/ฉี่หนู ฉีดตอนอายุ ≥ 60 วัน • วัคซีนพิษสุนัขบ้า ฉีดตอนอายุ ≥ 85 วัน • วัคซีนต้องไม่หมดอายุก่อนวันนำเข้าไทย</div>';
+  }
+  else if(dir==="export"){
+    const cur=formExtra.cond||"china";
+    h='<div class="f" style="max-width:380px;margin-bottom:12px"><label>เงื่อนไขประเทศปลายทาง (Export)</label>'+
+      '<select id="f-cond" data-act="vaxctx">'+
+      '<option value="china"'+(cur==="china"?" selected":"")+'>🇨🇳 ประเทศจีน (China)</option>'+
+      '<option value="eu"'+(cur==="eu"?" selected":"")+'>🇪🇺 EU Countries</option>'+
+      '<option value="general"'+(cur==="general"?" selected":"")+'>🌍 ทั่วไป (ประเทศอื่นๆ — ไม่ตรวจเงื่อนไข)</option>'+
+      '</select>'+
+      '<div class="mini" style="margin-top:4px">เลือก "ทั่วไป" สำหรับประเทศที่ไม่ใช่ China / EU เพื่อบันทึกข้อมูลโดยไม่ขึ้นฟ้องเงื่อนไข</div></div>';
+  }
+  $("#vaxConfig").innerHTML=h;
+}
+function getDir(){const r=document.querySelector('input[name="dir"]:checked');return r?r.value:"";}
+function getCond(){const s=$("#f-cond");return s?s.value:"china";}
+
+function paintVax(){
+  syncExtraFromDOM();
+  const dir=getDir();
+  let h='';
+  ["combined","lepto","rabies"].forEach(grp=>{
+    h+='<div class="vax-group"><div class="vh"><b>💉 '+VAX_GROUPS[grp]+'</b>'+
+      '<button class="btn sm" data-act="addvax" data-grp="'+grp+'" style="margin-left:auto">+ เพิ่มเข็ม</button></div>';
+    formVax[grp].forEach((v,i)=>{
+      h+='<div class="vax-row">'+
+        '<div class="pin">เข็มที่ '+(i+1)+'</div>'+
+        '<div class="vfld"><label>วันที่ฉีด (ค.ศ.)</label>'+
+          '<input type="date" id="vx-'+grp+'-'+i+'-date" value="'+esc(v.date)+'" data-act="vaxin" data-grp="'+grp+'" data-i="'+i+'" data-f="date">'+
+          '<div class="be" id="be-'+grp+'-'+i+'-date"></div></div>'+
+        '<div class="vfld"><label>วันหมดอายุ (ค.ศ.)</label>'+
+          '<input type="date" id="vx-'+grp+'-'+i+'-expiry" value="'+esc(v.expiry)+'" data-act="vaxin" data-grp="'+grp+'" data-i="'+i+'" data-f="expiry">'+
+          '<div class="be" id="be-'+grp+'-'+i+'-expiry"></div></div>'+
+        '<div class="vfld"><label>สถานะเงื่อนไข</label><div id="st-'+grp+'-'+i+'" style="font-size:12px;padding-top:6px"></div></div>'+
+        '<div>'+(i>0?'<button class="vax-rm" data-act="rmvax" data-grp="'+grp+'" data-i="'+i+'" title="ลบเข็มนี้">✕</button>':'')+'</div>'+
+      '</div>';
+    });
+    h+='</div>';
+  });
+  if(dir==="export"){
+    h+='<div class="vax-group"><div class="vh"><b>🔬 ข้อมูลเพิ่มเติม (Export)</b></div><div class="form-grid">'+
+      '<div class="f"><label>วันที่ฝังไมโครชิพ (ค.ศ.)</label>'+
+        '<input type="date" id="f-micro" value="'+esc(formExtra.micro)+'" data-act="vaxctx">'+
+        '<div class="be" id="be-micro"></div></div>'+
+      '<div class="f"><label>วันที่เจาะเลือด (ค.ศ.)</label>'+
+        '<input type="date" id="f-blood" value="'+esc(formExtra.blood)+'" data-act="vaxctx">'+
+        '<div class="be" id="be-blood"></div></div>'+
+      '</div></div>';
+  }
+  $("#vaxBody").innerHTML=h;
+}
+
+function readFormJob(){
+  const dir=getDir();
+  const jtype=$("#f-jtype").value;
+  const job=STATE.editId?Object.assign({},getJob(STATE.editId)):{id:uid(),createdAt:new Date().toISOString()};
+  if(!STATE.editId&&!job.jobNo)job.jobNo=nextJobNo();
+  const prevType=job.jobType;
+  job.customerName=$("#f-cname").value.trim();
+  job.customerPhone=$("#f-cphone").value.trim();
+  syncCountryFromDOM("origin");syncCountryFromDOM("dest");
+  job.originCountry=resolveCountry("origin");
+  job.destCountry=resolveCountry("dest");
+  job.jobType=jtype;
+  job.vaccineDir=dir;
+  job.travelDate=$("#f-travel").value;
+  job.recordDate=($("#f-record")&&$("#f-record").value)||todayStr();
+  const payR=document.querySelector('input[name=paystat]:checked');
+  job.paid=payR?payR.value==="pay":false;
+  job.sellPrice=parseFloat($("#f-sell")?$("#f-sell").value:"")||0;
+  job.costs=formCosts.filter(c=>c.cat||(c.amount!==""&&c.amount!=null)).map(c=>({cat:c.cat,amount:parseFloat(c.amount)||0}));
+  job.paidDate=(job.paid&&$("#f-paiddate"))?$("#f-paiddate").value:"";
+  syncBreedFromDOM();
+  let pBreed="",pBreedMix="";
+  if(formBreed.sel===MIXED_BREED){pBreed=MIXED_BREED;pBreedMix=(formBreed.extra||"").trim();}
+  else if(formBreed.sel===OTHER_BREED){pBreed=(formBreed.extra||"").trim();}
+  else{pBreed=(formBreed.sel||"").trim();}
+  job.pet={name:$("#f-pname").value.trim(),microchip:$("#f-pchip").value.trim(),color:$("#f-pcolor").value.trim(),
+    sex:$("#f-psex").value,dob:$("#f-pdob").value,species:$("#f-pspecies").value,breed:pBreed,breedMix:pBreedMix};
+  job.vax={combined:formVax.combined.map(v=>({date:v.date,expiry:v.expiry})),
+    lepto:formVax.lepto.map(v=>({date:v.date,expiry:v.expiry})),
+    rabies:formVax.rabies.map(v=>({date:v.date,expiry:v.expiry}))};
+  job.exportCond=dir==="export"?getCond():"";
+  job.microchipDate=dir==="export"&&$("#f-micro")?$("#f-micro").value:"";
+  job.bloodDate=dir==="export"&&$("#f-blood")?$("#f-blood").value:"";
+  job.notes=$("#f-notes").value.trim();
+  // checklist init / preserve
+  if(!job.checklist||prevType!==jtype){
+    job.checklist={docs:{},steps:{}};
+    const t=JOB_TYPES[jtype];
+    (t.docs||[]).forEach((_,i)=>job.checklist.docs[i]={done:false,date:""});
+    (t.steps||[]).forEach((_,i)=>job.checklist.steps[i]={done:false,date:""});
+  }
+  return job;
+}
+
+/* live vaccine refresh */
+function refreshVax(){
+  // BE displays
+  setBE("be-travel",$("#f-travel")&&$("#f-travel").value);
+  setBE("be-record",$("#f-record")&&$("#f-record").value);
+  setBE("be-pdob",$("#f-pdob")&&$("#f-pdob").value);
+  if($("#f-micro"))setBE("be-micro",$("#f-micro").value);
+  if($("#f-blood"))setBE("be-blood",$("#f-blood").value);
+  ["combined","lepto","rabies"].forEach(grp=>{
+    formVax[grp].forEach((v,i)=>{setBE("be-"+grp+"-"+i+"-date",v.date);setBE("be-"+grp+"-"+i+"-expiry",v.expiry);});
+  });
+  // build temp job
+  const dir=getDir();
+  const tmp={vaccineDir:dir,exportCond:dir==="export"?getCond():"",
+    pet:{dob:$("#f-pdob")?$("#f-pdob").value:""},
+    travelDate:$("#f-travel")?$("#f-travel").value:"",
+    microchipDate:$("#f-micro")?$("#f-micro").value:"",
+    bloodDate:$("#f-blood")?$("#f-blood").value:"",
+    vax:{combined:formVax.combined,lepto:formVax.lepto,rabies:formVax.rabies}};
+  const res=validateVaccines(tmp);
+  ["combined","lepto","rabies"].forEach(grp=>{
+    res.rows[grp].forEach((r,i)=>{const el=$("#st-"+grp+"-"+i);if(el)el.innerHTML=stIcon(r);});
+  });
+  // result summary
+  let items=[];
+  ["combined","lepto","rabies"].forEach(grp=>{
+    res.rows[grp].forEach((r,i)=>{if(r.ok!=null||r.msg)items.push({label:VAX_GROUPS[grp].split(" (")[0]+" เข็มที่ "+(i+1),r:r});});
+  });
+  if(dir==="export"){
+    if(res.micro)items.push({label:"วันที่ฝังไมโครชิพ",r:res.micro});
+    if(res.blood)items.push({label:"วันที่เจาะเลือด",r:res.blood});
+    res.extra.forEach(r=>items.push({label:"เงื่อนไขประเทศ",r:r}));
+  }
+  const overall=vaxOverall(res);
+  let cls=overall===true?"ok":overall===false?"no":"na";
+  let head=overall===true?"✅ วัคซีนผ่านเงื่อนไขทั้งหมด":overall===false?"❌ วัคซีนยังไม่ผ่านเงื่อนไข — ตรวจสอบรายการด้านล่าง":"⏳ รอข้อมูลครบเพื่อตรวจสอบ";
+  if(dir==="export"&&getCond()==="general"){cls="na";head="ℹ️ ปลายทางทั่วไป — บันทึกข้อมูลวัคซีนไว้ ไม่ตรวจเงื่อนไขอัตโนมัติ (ไม่ขึ้นฟ้อง)";}
+  let h='<div class="vax-result '+cls+'"><b>'+head+'</b>';
+  if(items.length){h+='<ul>';items.forEach(it=>{h+='<li>'+stIcon(it.r)+'<span><b>'+esc(it.label)+':</b> '+esc(it.r.msg||"-")+'</span></li>';});h+='</ul>';}
+  if(!dir)h+='<div class="mini" style="margin-top:6px">เลือกทิศทางงานก่อนเพื่อเริ่มตรวจสอบ</div>';
+  h+='</div>';
+  $("#vaxResult").innerHTML=h;
+}
+function stIcon(r){if(r.ok===true)return '<span style="color:#16a34a;font-size:16px">✔️</span>';
+  if(r.ok===false)return '<span style="color:#dc2626;font-size:16px">❌</span>';
+  return '<span style="color:#94a3b8;font-size:15px">⚪</span>';}
+function setBE(id,val){const el=document.getElementById(id);if(el)el.textContent=val?("พ.ศ. "+toBE(val)):"";}
+
+/* ============================ RENDER: SETTINGS ============================ */
+function renderSettings(){
+  const c=DB.cloud;
+  let h='';
+  h+='<div class="form-card"><h3>💾 สำรองข้อมูล (ไฟล์ JSON)</h3>'+
+    '<p class="mini" style="margin-bottom:10px">ข้อมูลถูกบันทึกอัตโนมัติในเครื่องนี้ (browser) ทุกครั้งที่แก้ไข • '+
+    'ใช้ปุ่มด้านล่างเพื่อสำรองเป็นไฟล์ แล้วนำไปเปิดในเครื่องอื่นได้</p>'+
+    '<div class="set-row">'+
+    '<button class="btn primary" data-act="export">⬇️ Export ข้อมูลเป็นไฟล์ .json</button>'+
+    '<button class="btn" data-act="importbtn">⬆️ Import ข้อมูลจากไฟล์</button>'+
+    '<input type="file" id="importFile" accept=".json" style="display:none">'+
+    '<span class="mini">รวม '+DB.jobs.length+' งานในระบบ</span>'+
+    '</div></div>';
+
+  h+='<div class="form-card"><h3>☁️ Cloud Sync — ฐานข้อมูล SQL (Supabase) <span class="pill '+(c.enabled?"on":"off")+'">'+(c.enabled?"เชื่อมต่อแล้ว":"ยังไม่เชื่อมต่อ")+'</span></h3>'+
+    '<p class="mini" style="margin-bottom:10px">เชื่อมต่อฐานข้อมูล PostgreSQL (SQL) ฟรีของ Supabase เพื่อให้เปิดงานจากเครื่องไหนก็เห็นข้อมูลล่าสุดเหมือนกัน ข้อมูลไม่ตกหล่น</p>';
+  h+='<div class="form-grid">'+
+    '<div class="f"><label>Supabase Project URL</label><input type="text" id="cl-url" value="'+esc(c.url)+'" placeholder="https://xxxx.supabase.co"></div>'+
+    '<div class="f"><label>Supabase anon public key</label><input type="text" id="cl-key" value="'+esc(c.key)+'" placeholder="eyJhbGci..."></div>'+
+    '</div>';
+  h+='<div class="set-row" style="margin-top:8px">'+
+    '<button class="btn primary" data-act="cloud-save">บันทึก & เชื่อมต่อ</button>'+
+    '<button class="btn" data-act="cloud-pull">⬇️ ดึงจาก Cloud</button>'+
+    '<button class="btn" data-act="cloud-push">⬆️ ส่งขึ้น Cloud</button>'+
+    (c.enabled?'<button class="btn danger" data-act="cloud-off">ตัดการเชื่อมต่อ</button>':'')+
+    '</div>';
+  h+='<details style="margin-top:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px">📋 วิธีตั้งค่า Supabase (ครั้งเดียว)</summary>'+
+    '<ol style="margin:10px 0 0 20px;font-size:12.5px;line-height:1.9">'+
+    '<li>สมัครฟรีที่ <a href="https://supabase.com" target="_blank">supabase.com</a> แล้วสร้าง Project ใหม่</li>'+
+    '<li>เข้าเมนู <b>SQL Editor</b> → วางคำสั่ง SQL ด้านล่าง → กด Run</li>'+
+    '<li>เข้าเมนู <b>Project Settings → API</b> คัดลอก <code>Project URL</code> และ <code>anon public</code> key มาวางในช่องด้านบน</li>'+
+    '<li>กด "บันทึก & เชื่อมต่อ" แล้วกด "ส่งขึ้น Cloud" 1 ครั้ง</li>'+
+    '<li>ในเครื่องอื่น เปิดไฟล์นี้ → ใส่ URL/key เดิม → กด "ดึงจาก Cloud"</li>'+
+    '</ol>'+
+    '<pre>create table if not exists dashboard_jobs (\n  id text primary key,\n  data jsonb not null,\n  updated_at timestamptz not null default now()\n);\n\nalter table dashboard_jobs enable row level security;\n\ndrop policy if exists "allow all" on dashboard_jobs;\ncreate policy "allow all" on dashboard_jobs\n  for all using (true) with check (true);</pre>'+
+    '<p class="mini">หมายเหตุความปลอดภัย: นโยบายนี้เปิดให้ผู้ที่มี URL+key เข้าถึงข้อมูลได้ เหมาะกับการใช้ภายในทีม — หากต้องการจำกัดสิทธิ์เพิ่ม แจ้งได้ จะปรับให้รองรับ login</p>'+
+    '</details>';
+  h+='</div>';
+
+  h+='<div class="form-card"><h3>⚠️ ล้างข้อมูล</h3>'+
+    '<div class="set-row"><button class="btn danger" data-act="wipe">ลบข้อมูลทั้งหมดในเครื่องนี้</button>'+
+    '<span class="mini">แนะนำ Export สำรองก่อนทุกครั้ง</span></div></div>';
+  $("#content").innerHTML=h;
+}
+
+/* ============================ EVENT HANDLING ============================ */
+document.addEventListener("click",e=>{
+  const el=e.target.closest("[data-act]");if(!el)return;
+  const act=el.dataset.act;
+  if(act==="nav"){STATE.view=el.dataset.view;if(el.dataset.view==="new")STATE.editId=null;STATE.filters={};render();window.scrollTo(0,0);}
+  else if(act==="clearfilter"){STATE.filters={};render();}
+  else if(act==="toggle"){toggleStep(el.dataset.id,el.dataset.kind,+el.dataset.idx);}
+  else if(act==="paid"){const j=getJob(el.dataset.id);if(j){j.paid=!j.paid;persistJob(j);render();}}
+  else if(act==="edit"){STATE.editId=el.dataset.id;STATE.view="new";render();window.scrollTo(0,0);}
+  else if(act==="open"){const j=getJob(el.dataset.id);if(j){STATE.view="job:"+j.jobType;STATE.filters={};render();window.scrollTo(0,0);}}
+  else if(act==="pdf"){generatePDF(el.dataset.id);}
+  else if(act==="del"){const j=getJob(el.dataset.id);
+    if(j&&confirm("ลบงานของ \""+(j.customerName||"-")+"\" ?")){deleteJob(el.dataset.id);toast("ลบงานแล้ว");render();}}
+  else if(act==="addvax"){formVax[el.dataset.grp].push({date:"",expiry:""});paintVax();refreshVax();}
+  else if(act==="rmvax"){formVax[el.dataset.grp].splice(+el.dataset.i,1);paintVax();refreshVax();}
+  else if(act==="addcost"){formCosts.push({cat:"",amount:""});paintCosts();refreshFinance();}
+  else if(act==="rmcost"){formCosts.splice(+el.dataset.i,1);paintCosts();refreshFinance();}
+  else if(act==="savejob"){saveJobFromForm();}
+  else if(act==="export"){doExport();}
+  else if(act==="importbtn"){$("#importFile").click();}
+  else if(act==="cloud-save"){cloudSave();}
+  else if(act==="cloud-pull"){cloudPull(false).then(()=>render());}
+  else if(act==="cloud-push"){cloudPush();}
+  else if(act==="cloud-off"){DB.cloud.enabled=false;saveLocal();toast("ตัดการเชื่อมต่อ Cloud แล้ว");render();}
+  else if(act==="wipe"){if(confirm("ยืนยันลบข้อมูลทั้งหมดในเครื่องนี้?")){DB.jobs=[];saveLocal();toast("ลบข้อมูลแล้ว");render();}}
+});
+document.addEventListener("input",e=>{
+  const el=e.target.closest("[data-act]");if(!el)return;
+  const act=el.dataset.act;
+  if(act==="filter"){STATE.filters[el.dataset.key]=el.value;
+    if(el.type==="text"){const sel=document.activeElement;render();
+      const back=document.querySelector('[data-key="'+el.dataset.key+'"]');if(back){back.focus();back.setSelectionRange(back.value.length,back.value.length);}}
+    else render();}
+  else if(act==="vaxin"){formVax[el.dataset.grp][+el.dataset.i][el.dataset.f]=el.value;refreshVax();}
+  else if(act==="finin"){refreshFinance();}
+  else if(act==="recin"){setBE("be-record",el.value);}
+  else if(act==="costin"){if(formCosts[+el.dataset.i])formCosts[+el.dataset.i][el.dataset.f]=el.value;refreshFinance();}
+  else if(act==="payradio"){
+    document.querySelectorAll("#payRow label").forEach(l=>l.classList.remove("on"));
+    el.closest("label").classList.add("on");
+    const w=$("#payDateWrap");if(w)w.style.display=el.value==="pay"?"flex":"none";
+    refreshFinance();
+  }
+  else if(act==="vaxctx"){
+    if(el.name==="dir"){
+      document.querySelectorAll("#dirRow label").forEach(l=>l.classList.remove("on"));
+      el.closest("label").classList.add("on");
+      paintVaxConfig();paintVax();
+      const tl=$("#travelLbl");if(tl)tl.textContent=el.value==="import"?"วันเดินทางเข้าประเทศไทย":el.value==="export"?"วันเดินทางออกจากประเทศไทย":"วันเดินทาง";
+    }
+    refreshVax();
+  }
+});
+document.addEventListener("change",e=>{
+  if(e.target.id==="importFile"){handleImport(e.target.files[0]);return;}
+  const el=e.target.closest("[data-act]");if(!el)return;
+  if(el.dataset.act==="setdate"){
+    const j=getJob(el.dataset.id);if(!j)return;
+    if(!j.checklist)j.checklist={docs:{},steps:{}};
+    const k=el.dataset.kind,i=+el.dataset.idx;
+    if(!j.checklist[k])j.checklist[k]={};
+    if(!j.checklist[k][i])j.checklist[k][i]={done:false,date:""};
+    j.checklist[k][i].date=el.value;persistJob(j);render();
+  }
+  else if(el.dataset.act==="jtype"){
+    const nd=JOB_TYPES[el.value].dir;
+    if(nd){
+      const r=document.querySelector('input[name=dir][value="'+nd+'"]');
+      if(r){r.checked=true;
+        document.querySelectorAll("#dirRow label").forEach(l=>l.classList.remove("on"));
+        r.closest("label").classList.add("on");}
+    }
+    paintVaxConfig();paintVax();refreshVax();updateTravelLbl();
+  }
+  else if(el.dataset.act==="speciessel"){paintBreed();}
+  else if(el.dataset.act==="breedsel"){paintBreed();}
+  else if(el.dataset.act==="countrysel"){paintCountry(el.dataset.which);}
+});
+
+function toggleStep(id,kind,idx){
+  const j=getJob(id);if(!j)return;
+  if(!j.checklist)j.checklist={docs:{},steps:{}};
+  if(!j.checklist[kind])j.checklist[kind]={};
+  const c=j.checklist[kind][idx]||{done:false,date:""};
+  c.done=!c.done;
+  if(c.done&&!c.date)c.date=todayStr();
+  j.checklist[kind][idx]=c;
+  persistJob(j);render();
+}
+function saveJobFromForm(){
+  if(!$("#f-cname").value.trim()){toast("กรุณากรอกชื่อลูกค้า","err");$("#f-cname").focus();return;}
+  const job=readFormJob();
+  persistJob(job);
+  toast(STATE.editId?"อัปเดตงานแล้ว":"บันทึกงานใหม่แล้ว","ok");
+  STATE.editId=null;STATE.view="job:"+job.jobType;STATE.filters={};render();window.scrollTo(0,0);
+}
+function doExport(){
+  const blob=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download="convey-dashboard-backup-"+todayStr()+".json";a.click();
+  toast("Export ไฟล์สำรองแล้ว","ok");
+}
+function handleImport(file){
+  if(!file)return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{const d=JSON.parse(rd.result);
+      if(!d.jobs||!Array.isArray(d.jobs))throw new Error("ไฟล์ไม่ถูกต้อง");
+      if(!confirm("นำเข้า "+d.jobs.length+" งาน? ข้อมูลเดิมในเครื่องจะถูกแทนที่"))return;
+      DB.jobs=d.jobs;if(d.cloud)DB.cloud=Object.assign(DB.cloud,d.cloud);
+      saveLocal();toast("นำเข้าข้อมูลสำเร็จ","ok");render();
+    }catch(err){toast("นำเข้าไม่สำเร็จ: "+err.message,"err");}
+  };
+  rd.readAsText(file);
+}
+function cloudSave(){
+  const url=$("#cl-url").value.trim(),key=$("#cl-key").value.trim();
+  if(!url||!key){toast("กรอก URL และ key ให้ครบ","err");return;}
+  DB.cloud={url,key,enabled:true};saveLocal();
+  toast("กำลังทดสอบการเชื่อมต่อ...");
+  cloudPull(true).then(ok=>{
+    if(ok){toast("เชื่อมต่อ Cloud สำเร็จ ✓","ok");}
+    else{DB.cloud.enabled=false;saveLocal();toast("เชื่อมต่อไม่สำเร็จ ตรวจสอบ URL/key และตาราง SQL","err");}
+    render();
+  });
+}
+
+/* ============================ PDF REPORT ============================ */
+function buildReportHTML(j){
+  const t=JOB_TYPES[j.jobType]||{label:j.jobType||"-",docs:[],steps:[]};
+  const p=progressOf(j);const it=jobItems(j);const pet=j.pet||{};
+  const dirTxt=j.vaccineDir==="import"?"Import (นำเข้าประเทศไทย)":j.vaccineDir==="export"?"Export (ออกจากประเทศไทย)":"-";
+  const travelLbl=j.vaccineDir==="import"?"วันเดินทางเข้าไทย":j.vaccineDir==="export"?"วันเดินทางออกจากไทย":"วันเดินทาง";
+  function dt(s){return s?(fmtCE(s)+" / พ.ศ. "+toBE(s)):"-";}
+  function row(k,v){return '<div><b>'+esc(k)+'</b><span>'+v+'</span></div>';}
+  function stTxt(r){if(!r)return '<span class="na">-</span>';
+    if(r.ok===true)return '<span class="ok">✔ ผ่าน</span> '+esc(r.msg||"");
+    if(r.ok===false)return '<span class="no">✘ ไม่ผ่าน</span> '+esc(r.msg||"");
+    return '<span class="na">'+esc(r.msg||"-")+'</span>';}
+
+  let vaxHTML="";
+  if(j.vax&&j.vaccineDir){
+    const res=validateVaccines(j);
+    const condTxt=j.vaccineDir==="export"?({china:"ประเทศจีน (China)",eu:"EU Countries",general:"ทั่วไป (ไม่ตรวจเงื่อนไข)"}[j.exportCond]||"-"):"นำเข้าประเทศไทย";
+    let vrows="";
+    [["combined","วัคซีนรวม"],["lepto","วัคซีนป้องกันฉี่หนู"],["rabies","วัคซีนพิษสุนัขบ้า"]].forEach(g=>{
+      (j.vax[g[0]]||[]).forEach((v,i)=>{
+        if(!v.date&&!v.expiry)return;
+        const r=(res.rows[g[0]]||[])[i]||null;
+        vrows+='<tr><td>'+esc(g[1])+'</td><td>เข็มที่ '+(i+1)+'</td><td>'+dt(v.date)+'</td><td>'+(v.expiry?dt(v.expiry):"-")+'</td><td>'+stTxt(r)+'</td></tr>';
+      });
+    });
+    if(j.vaccineDir==="export"){
+      if(res.micro)vrows+='<tr><td colspan="2">วันที่ฝังไมโครชิพ</td><td colspan="2">'+dt(j.microchipDate)+'</td><td>'+stTxt(res.micro)+'</td></tr>';
+      if(res.blood)vrows+='<tr><td colspan="2">วันที่เจาะเลือด</td><td colspan="2">'+dt(j.bloodDate)+'</td><td>'+stTxt(res.blood)+'</td></tr>';
+    }
+    const ov=vaxOverall(res);
+    const ovTxt=(j.vaccineDir==="export"&&j.exportCond==="general")?'<span class="na">บันทึกข้อมูลไว้ — ไม่ตรวจเงื่อนไข</span>':
+      ov===true?'<span class="ok">✔ ผ่านเงื่อนไขทั้งหมด</span>':ov===false?'<span class="no">✘ ยังไม่ผ่านเงื่อนไข</span>':'<span class="na">— รอข้อมูลเพิ่มเติม</span>';
+    vaxHTML='<div class="sec"><h3>วัคซีน & เงื่อนไข</h3><div class="kv">'+
+      row("โหมด",dirTxt)+row("เงื่อนไขปลายทาง",esc(condTxt))+'</div>'+
+      (vrows?'<table><thead><tr><th>ประเภทวัคซีน</th><th>รายการ</th><th>วันที่ฉีด</th><th>วันหมดอายุ</th><th>ผลตรวจเงื่อนไข</th></tr></thead><tbody>'+vrows+'</tbody></table>':'<p style="margin-top:6px;color:#999;font-size:11px">ยังไม่มีข้อมูลวัคซีน</p>')+
+      '<p style="margin-top:7px;font-size:11.5px"><b>สรุปผลวัคซีน: </b>'+ovTxt+'</p></div>';
+  }
+
+  const total=jobCostTotal(j);const profit=jobProfit(j);
+  let costRows=(j.costs||[]).map(c=>'<tr><td>'+esc(c.cat||"-")+'</td><td class="tot">'+money(c.amount)+'</td></tr>').join("");
+  if(!costRows)costRows='<tr><td colspan="2" style="color:#999">ไม่มีรายการต้นทุน</td></tr>';
+  const finHTML='<div class="sec"><h3>การเงิน</h3>'+
+    '<table><thead><tr><th>รายการต้นทุน</th><th class="tot">จำนวนเงิน</th></tr></thead><tbody>'+costRows+
+    '<tr><td class="tot">รวมต้นทุนทั้งหมด</td><td class="tot">'+money(total)+'</td></tr></tbody></table>'+
+    '<div class="kv" style="margin-top:8px">'+
+    row("ราคาขายลูกค้า","<b>"+money(j.sellPrice)+"</b>")+
+    row("กำไรสุทธิ",'<b class="'+(profit<0?"no":"ok")+'">'+money(profit)+'</b>')+
+    row("สถานะการเงิน",j.paid?'<span class="ok">รับเงินแล้ว (Pay)</span>':'<span class="no">ค้างจ่าย (Un-Pay)</span>')+
+    row("วันที่ได้รับเงิน",(j.paid&&j.paidDate)?dt(j.paidDate):"-")+
+    '</div></div>';
+
+  function clTable(kind,label,items){
+    if(!items||!items.length)return"";
+    let r="";
+    items.forEach((name,i)=>{
+      const c=(j.checklist&&j.checklist[kind]&&j.checklist[kind][i])||{done:false,date:""};
+      r+='<tr><td>'+(kind==="steps"?(i+1)+". ":"")+esc(name)+'</td><td>'+(c.done?'<span class="ok">✔ เสร็จแล้ว</span>':'<span class="na">○ ยังไม่ทำ</span>')+'</td><td>'+(c.date?fmtCE(c.date):"-")+'</td></tr>';
+    });
+    return '<p style="margin-top:9px;font-weight:700;font-size:11.5px">'+esc(label)+'</p>'+
+      '<table><thead><tr><th>รายการ</th><th>สถานะ</th><th>วันที่</th></tr></thead><tbody>'+r+'</tbody></table>';
+  }
+  const clHTML='<div class="sec"><h3>สถานะการดำเนินงาน — คืบหน้า '+p.done+'/'+p.total+' ('+p.pct+'%)</h3>'+
+    clTable("docs","เอกสารที่ได้รับ",it.docs)+clTable("steps","ขั้นตอนการทำงาน",it.steps)+'</div>';
+
+  const css="*{margin:0;padding:0;box-sizing:border-box;}"+
+    "body{font-family:'Leelawadee UI','Sarabun','Noto Sans Thai',Tahoma,sans-serif;color:#1a1a1a;font-size:13px;line-height:1.5;background:#e8e8e8;}"+
+    ".pbtn{display:block;margin:16px auto;padding:9px 22px;background:#0d9488;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit;}"+
+    ".rpt{max-width:780px;margin:0 auto 30px;background:#fff;padding:30px 34px;box-shadow:0 2px 12px rgba(0,0,0,.15);}"+
+    ".rpt-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #ea580c;padding-bottom:10px;}"+
+    ".rpt-head .co{font-size:17px;font-weight:800;color:#ea580c;}"+
+    ".rpt-head .co small{display:block;font-size:10.5px;color:#666;font-weight:400;margin-top:2px;}"+
+    ".rpt-head .jn{text-align:right;}.rpt-head .jn .no{font-size:17px;font-weight:800;color:#ea580c;}.rpt-head .jn small{font-size:10px;color:#666;}"+
+    ".rpt-title{font-size:14px;font-weight:700;margin:12px 0;}"+
+    ".sec{margin-top:15px;}"+
+    ".sec h3{font-size:12px;font-weight:700;background:#0d9488;color:#fff;padding:5px 10px;border-radius:4px;}"+
+    "table{width:100%;border-collapse:collapse;margin-top:7px;}"+
+    "th,td{border:1px solid #ccc;padding:5px 8px;text-align:left;font-size:11px;vertical-align:top;}"+
+    "th{background:#f0f0f0;font-weight:700;}"+
+    ".kv{display:grid;grid-template-columns:1fr 1fr;gap:0 22px;margin-top:7px;}"+
+    ".kv>div{display:flex;padding:4px 2px;border-bottom:1px dotted #ddd;font-size:11.5px;}"+
+    ".kv>div b{min-width:118px;color:#555;font-weight:600;}"+
+    ".ok{color:#15803d;font-weight:700;}.no{color:#dc2626;font-weight:700;}.na{color:#999;}"+
+    ".tot{text-align:right;font-weight:700;}"+
+    ".foot{margin-top:24px;border-top:1px solid #ccc;padding-top:9px;font-size:10px;color:#999;text-align:center;}"+
+    "@media print{body{background:#fff;}.pbtn{display:none;}.rpt{margin:0;padding:0;max-width:100%;box-shadow:none;}"+
+    ".sec{break-inside:avoid;page-break-inside:avoid;}.sec h3{break-after:avoid;page-break-after:avoid;}"+
+    "table{break-inside:auto;}tr{break-inside:avoid;page-break-inside:avoid;}thead{display:table-header-group;}"+
+    ".kv{break-inside:avoid;page-break-inside:avoid;}.kv>div{break-inside:avoid;page-break-inside:avoid;}"+
+    ".rpt-head{break-inside:avoid;page-break-inside:avoid;}}"+
+    "@page{size:A4;margin:13mm;}";
+
+  let html='<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>รายงาน '+esc(j.jobNo||"")+'</title><style>'+css+'</style></head><body>';
+  html+='<button class="pbtn" onclick="window.print()">🖨 บันทึกเป็น PDF / พิมพ์รายงาน</button>';
+  html+='<div class="rpt">';
+  html+='<div class="rpt-head"><div class="co">Convey Pet Relocation Service<small>บริการนำเข้า-ส่งออกสัตว์เลี้ยงระหว่างประเทศ แบบ One-Stop Service</small></div>'+
+    '<div class="jn"><div class="no">'+esc(j.jobNo||"-")+'</div><small>วันที่ออกรายงาน<br>'+fmtCE(todayStr())+'</small></div></div>';
+  html+='<div class="rpt-title">รายงานสรุปงาน — '+esc(t.label)+'</div>';
+  html+='<div class="sec"><h3>ข้อมูลงาน & ลูกค้า</h3><div class="kv">'+
+    row("เลขที่งาน","<b>"+esc(j.jobNo||"-")+"</b>")+row("ประเภทงาน",esc(t.label))+
+    row("ทิศทางงาน",dirTxt)+row("สถานะงาน",isClosed(j)?'<span class="ok">ปิดจ๊อบแล้ว</span>':"กำลังดำเนินการ")+
+    row("ชื่อลูกค้า",esc(j.customerName||"-"))+row("เบอร์โทรศัพท์",esc(j.customerPhone||"-"))+
+    row("ประเทศต้นทาง",esc(j.originCountry||"-"))+row("ประเทศปลายทาง",esc(j.destCountry||"-"))+
+    row(travelLbl,dt(j.travelDate))+row("วันที่บันทึกงาน",dt(j.recordDate))+
+    '</div></div>';
+  html+='<div class="sec"><h3>รายละเอียดสัตว์เลี้ยง</h3><div class="kv">'+
+    row("ชื่อสัตว์เลี้ยง",esc(pet.name||"-"))+row("ประเภท",esc(pet.species||"-"))+
+    row("สายพันธุ์",esc(breedDisplay(pet)||"-"))+row("หมายเลขไมโครชิพ",esc(pet.microchip||"-"))+
+    row("สี",esc(pet.color||"-"))+row("เพศ",esc(pet.sex||"-"))+
+    row("วันเดือนปีเกิด",dt(pet.dob))+
+    '</div></div>';
+  html+=vaxHTML+finHTML+clHTML;
+  if(j.notes)html+='<div class="sec"><h3>หมายเหตุ</h3><p style="margin-top:6px;font-size:11.5px;white-space:pre-wrap">'+esc(j.notes)+'</p></div>';
+  html+='<div class="foot">เอกสารนี้สร้างอัตโนมัติจากระบบ Convey Dashboard • '+fmtCE(todayStr())+' (พ.ศ. '+toBE(todayStr())+')</div>';
+  html+='</div>';
+  html+='<scr'+'ipt>setTimeout(function(){window.print();},450);</scr'+'ipt>';
+  html+='</body></html>';
+  return html;
+}
+function generatePDF(id){
+  const j=getJob(id);
+  if(!j){toast("ไม่พบข้อมูลงาน","err");return;}
+  const w=window.open("","_blank");
+  if(!w){toast("เบราว์เซอร์บล็อก pop-up — กรุณาอนุญาต pop-up ของหน้านี้ แล้วลองใหม่","err");return;}
+  w.document.write(buildReportHTML(j));
+  w.document.close();
+  toast("เปิดหน้ารายงาน "+(j.jobNo||"")+' แล้ว — เลือก "Save as PDF" ในหน้าต่างพิมพ์',"ok");
+}
+
+/* ============================ INIT ============================ */
+loadLocal();
+backfillJobNos();
+render();
+if(DB.cloud.enabled){cloudPull(true).then(ok=>{if(ok){backfillJobNos();render();}});}
+</script>
+</body>
+</html>

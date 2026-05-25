@@ -473,6 +473,8 @@ function attachFilenameBase(){
 async function handleAttachUpload(file){
   if(!file)return;
   if(!$("#f-cname")||!$("#f-cname").value.trim()){toast("กรุณากรอกชื่อลูกค้าก่อนอัปโหลดไฟล์","err");return;}
+  if(!(driveToken&&Date.now()<driveTokenExp-60000)){
+    toast("เซสชัน Google หมดอายุ — กดปุ่ม 'เชื่อมต่อ Google Drive' อีกครั้งก่อนอัปโหลด","err");paintAttachments();return;}
   const extM=(file.name||"").match(/\.[A-Za-z0-9]+$/);
   const n=formAttachments.length;
   const fname=attachFilenameBase()+(n>0?("_"+(n+1)):"")+(extM?extM[0]:"");
@@ -492,8 +494,13 @@ function paintAttachments(){
   if(!driveReady()){
     h='<div class="hint">⚠️ ยังไม่ได้เชื่อมต่อ Google Drive — ไปที่แท็บ <b>ตั้งค่า</b> → ส่วน Google Drive เพื่อเชื่อมต่อก่อน จึงจะแนบไฟล์ได้</div>';
   }else{
+    const tokenOK=driveToken&&Date.now()<driveTokenExp-60000;
     h='<input type="file" id="attachFile" style="display:none">';
-    h+='<button class="btn" data-act="attachup">⬆️ อัปโหลดไฟล์ขึ้น Google Drive</button>';
+    if(tokenOK){
+      h+='<button class="btn" data-act="attachup">⬆️ อัปโหลดไฟล์ขึ้น Google Drive</button>';
+    }else{
+      h+='<button class="btn primary" data-act="driveconnect">🔗 เชื่อมต่อ Google Drive (ล็อกอินก่อน 1 ครั้ง)</button>';
+    }
     h+='<div class="mini" style="margin-top:5px">ไฟล์จะตั้งชื่ออัตโนมัติ: ชื่อลูกค้า_ประเภทงาน_ต้นทาง_ปลายทาง_วันที่บันทึก</div>';
     if(formAttachments.length){
       h+='<div style="margin-top:10px">';
@@ -1396,6 +1403,7 @@ document.addEventListener("click",e=>{
   else if(act==="cloud-off"){DB.cloud.enabled=false;saveLocal();toast("ตัดการเชื่อมต่อ Cloud แล้ว");render();}
   else if(act==="drive-save"){driveSave();}
   else if(act==="drive-off"){DB.drive.enabled=false;saveLocal();toast("ตัดการเชื่อมต่อ Google Drive แล้ว");render();}
+  else if(act==="driveconnect"){ensureDriveToken().then(()=>{paintAttachments();toast("เชื่อมต่อ Google Drive แล้ว — กดอัปโหลดได้เลย","ok");}).catch(e=>toast("เชื่อมต่อ Google ไม่สำเร็จ: "+(e&&e.message||e),"err"));}
   else if(act==="attachup"){const fi=$("#attachFile");if(fi)fi.click();}
   else if(act==="attachrm"){formAttachments.splice(+el.dataset.i,1);paintAttachments();}
   else if(act==="wipe"){if(confirm("ยืนยันลบข้อมูลทั้งหมดในเครื่องนี้?")){DB.jobs=[];saveLocal();toast("ลบข้อมูลแล้ว");render();}}

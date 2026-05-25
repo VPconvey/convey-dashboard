@@ -522,6 +522,35 @@ function driveSave(){
   ensureDriveToken().then(()=>{toast("เชื่อมต่อ Google Drive สำเร็จ ✓","ok");render();})
     .catch(e=>{toast("เชื่อมต่อไม่สำเร็จ: "+(e&&e.message||e),"err");render();});
 }
+function refreshDriveTokenSilently(){
+  if(!driveReady())return;
+  if(typeof google==="undefined"||!google.accounts||!google.accounts.oauth2)return;
+  try{
+    const tc=google.accounts.oauth2.initTokenClient({
+      client_id:DB.drive.clientId,
+      scope:"https://www.googleapis.com/auth/drive.file",
+      callback:(resp)=>{
+        if(resp&&resp.access_token){
+          driveToken=resp.access_token;
+          driveTokenExp=Date.now()+((resp.expires_in||3600)*1000);
+          if(STATE.view==="new"&&$("#attachBox"))paintAttachments();
+        }
+      },
+      error_callback:()=>{}
+    });
+    tc.requestAccessToken({prompt:"none"});
+  }catch(e){}
+}
+function startDriveAutoRefresh(){
+  if(!(DB.drive&&DB.drive.enabled))return;
+  let tries=0;
+  const wait=setInterval(function(){
+    tries++;
+    if(typeof google!=="undefined"&&google.accounts&&google.accounts.oauth2){clearInterval(wait);refreshDriveTokenSilently();}
+    else if(tries>40){clearInterval(wait);}
+  },500);
+  setInterval(refreshDriveTokenSilently,50*60*1000);
+}
 
 /* ============================ VACCINE VALIDATION ============================ */
 function ageDaysAt(dob,d){const D=parseD(d),B=parseD(dob);if(!D||!B)return null;return daysBetween(D,B);}
@@ -1006,6 +1035,7 @@ function renderForm(){
   paintCosts();
   refreshFinance();
   paintAttachments();
+  if(driveReady()&&!(driveToken&&Date.now()<driveTokenExp-60000))refreshDriveTokenSilently();
   paintVaxConfig();
   renderPets();
   setBE("be-travel",$("#f-travel")?$("#f-travel").value:"");
@@ -1647,6 +1677,7 @@ loadLocal();
 backfillJobNos();
 render();
 if(DB.cloud.enabled){cloudPull(true).then(ok=>{if(ok){backfillJobNos();render();}});}
+startDriveAutoRefresh();
 </script>
 </body>
 </html>

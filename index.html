@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Convey Pet Relocation — Dashboard งาน</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23ea580c'/%3E%3Ccircle cx='32' cy='42' r='12' fill='white'/%3E%3Ccircle cx='17' cy='28' r='5.5' fill='white'/%3E%3Ccircle cx='47' cy='28' r='5.5' fill='white'/%3E%3Ccircle cx='12' cy='42' r='4.5' fill='white'/%3E%3Ccircle cx='52' cy='42' r='4.5' fill='white'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23ea580c'/%3E%3Ccircle cx='32' cy='42' r='12' fill='white'/%3E%3Ccircle cx='17' cy='28' r='5.5' fill='white'/%3E%3Ccircle cx='47' cy='28' r='5.5' fill='white'/%3E%3Ccircle cx='12' cy='42' r='4.5' fill='white'/%3E%3Ccircle cx='52' cy='42' r='4.5' fill='white'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#ea580c">
 <style>
 :root{
   --bg:#eef2f6;--card:#ffffff;--ink:#0f172a;--mut:#64748b;--line:#e2e8f0;
@@ -1641,6 +1644,14 @@ function renderSettings(){
     '<span class="mini">รวม '+DB.jobs.length+' งานในระบบ</span>'+
     '</div></div>';
 
+  h+='<div class="form-card"><h3>📊 ส่งออกเป็น Excel (.xlsx)</h3>'+
+    '<p class="mini" style="margin-bottom:10px">ส่งออกงานทั้งหมดเป็นชีตเดียว — แต่ละแถว = 1 งาน รวมสรุปสัตว์เลี้ยง/ค่าใช้จ่าย/วัคซีน • เหมาะกับการเปิด Excel เพื่อทำ Pivot/Chart/Filter ต่อ</p>'+
+    '<div class="set-row">'+
+    '<button class="btn primary" data-act="excel">📊 Export Excel (ทุกงาน)</button>'+
+    '<button class="btn" data-act="csv">📄 Export CSV (สำรอง — ใช้ตอนไม่มี internet)</button>'+
+    '<span class="mini">รวม '+DB.jobs.length+' งาน • โหลด SheetJS จาก CDN เมื่อกดครั้งแรก</span>'+
+    '</div></div>';
+
   h+='<div class="form-card"><h3>☁️ Cloud Sync — ฐานข้อมูล SQL (Supabase) <span class="pill '+(c.enabled?"on":"off")+'">'+(c.enabled?"เชื่อมต่อแล้ว":"ยังไม่เชื่อมต่อ")+'</span></h3>'+
     '<p class="mini" style="margin-bottom:10px">เชื่อมต่อฐานข้อมูล PostgreSQL (SQL) ฟรีของ Supabase เพื่อให้เปิดงานจากเครื่องไหนก็เห็นข้อมูลล่าสุดเหมือนกัน ข้อมูลไม่ตกหล่น</p>';
   h+='<div class="form-grid">'+
@@ -1723,6 +1734,8 @@ document.addEventListener("click",e=>{
   else if(act==="rmcost"){formCosts.splice(+el.dataset.i,1);paintCosts();refreshFinance();}
   else if(act==="savejob"){saveJobFromForm();}
   else if(act==="export"){doExport();}
+  else if(act==="excel"){doExportExcel();}
+  else if(act==="csv"){doExportCSV();}
   else if(act==="importbtn"){$("#importFile").click();}
   else if(act==="cloud-save"){cloudSave();}
   else if(act==="cloud-pull"){cloudPull(false).then(()=>render());}
@@ -1873,6 +1886,106 @@ function doExport(){
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);
   a.download="convey-dashboard-backup-"+todayStr()+".json";a.click();
   toast("Export ไฟล์สำรองแล้ว","ok");
+}
+/* ============================ EXCEL / CSV EXPORT ============================ */
+function buildExportRows(){
+  const rows=[];
+  DB.jobs.forEach(j=>{
+    const t=JOB_TYPES[j.jobType]||{label:j.jobType||"",icon:""};
+    const pets=j.pets||[];
+    const petsStr=pets.map(p=>{
+      const breed=p.breedMix?(MIXED_BREED+" ("+p.breedMix+")"):(p.breed||"-");
+      return (p.name||"-")+" / "+(p.species||"-")+" / "+breed+" / 🆔 "+(p.microchip||"-");
+    }).join(" | ");
+    const vaxStr=pets.map(p=>{
+      const v=p.vax||{};
+      const parts=[];
+      ["combined","lepto","rabies"].forEach(grp=>{
+        const arr=(v[grp]||[]).filter(x=>x.date||x.expiry);
+        if(arr.length){
+          const lbl=grp==="combined"?"รวม":grp==="lepto"?"ฉี่หนู":"พิษสุนัขบ้า";
+          parts.push(lbl+": "+arr.map(x=>(x.date||"-")+(x.expiry?(" → exp "+x.expiry):"")).join(", "));
+        }
+      });
+      return (p.name||"-")+" {"+parts.join(" • ")+"}";
+    }).join(" | ");
+    const costsStr=(j.costs||[]).map(c=>(c.cat||"-")+": "+(Number(c.amount)||0)+(c.note?(" ["+c.note+"]"):"")).join(" | ");
+    const condTxt=j.vaccineDir==="export"?({china:"China",eu:"EU",general:"ทั่วไป"}[j.exportCond]||""):"";
+    const sell=Number(j.sellPrice)||0,cost=jobCostTotal(j);
+    const pr=progressOf(j);
+    rows.push({
+      "เลขที่งาน":j.jobNo||"",
+      "วันที่บันทึก":j.recordDate||"",
+      "วันที่อัปเดต":j.updatedAt?j.updatedAt.slice(0,10):"",
+      "ประเภทงาน":t.label,
+      "ทิศทาง":j.vaccineDir==="import"?"Import":j.vaccineDir==="export"?"Export":"",
+      "ประเทศต้นทาง":j.originCountry||"",
+      "ประเทศปลายทาง":j.destCountry||"",
+      "เงื่อนไขปลายทาง":condTxt,
+      "วันเดินทาง":j.travelDate||"",
+      "ชื่อลูกค้า":j.customerName||"",
+      "เบอร์โทร":j.customerPhone||"",
+      "ผู้รับผิดชอบ":j.assignee||"",
+      "จำนวนสัตว์เลี้ยง":pets.length,
+      "รายการสัตว์เลี้ยง":petsStr,
+      "รายละเอียดวัคซีน":vaxStr,
+      "ราคาขาย (บาท)":sell,
+      "ต้นทุนรวม (บาท)":cost,
+      "กำไรสุทธิ (บาท)":sell-cost,
+      "รายการต้นทุน":costsStr,
+      "สถานะการเงิน":j.paid?"Paid":"Unpaid",
+      "วันที่รับเงิน":j.paidDate||"",
+      "สถานะปิดงาน":isClosed(j)?"ปิดงาน":"กำลังทำ",
+      "ความคืบหน้า":pr.done+"/"+pr.total+" ("+pr.pct+"%)",
+      "Calendar Event":j.calendarEvent&&j.calendarEvent.link?j.calendarEvent.link:"",
+      "เอกสารแนบ (จำนวน)":(j.attachments||[]).length,
+      "หมายเหตุ":j.notes||"",
+      "วันที่สร้าง":j.createdAt?j.createdAt.slice(0,10):""
+    });
+  });
+  return rows;
+}
+function loadSheetJS(){
+  if(window.XLSX)return Promise.resolve(window.XLSX);
+  return new Promise((resolve,reject)=>{
+    const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload=()=>resolve(window.XLSX);
+    s.onerror=()=>reject(new Error("โหลด SheetJS ไม่สำเร็จ — เช็ค internet หรือใช้ CSV แทน"));
+    document.head.appendChild(s);
+  });
+}
+function doExportExcel(){
+  if(!DB.jobs.length){toast("ยังไม่มีงานให้ export","err");return;}
+  toast("กำลังโหลด SheetJS + เตรียมไฟล์...");
+  loadSheetJS().then(XLSX=>{
+    const rows=buildExportRows();
+    const ws=XLSX.utils.json_to_sheet(rows);
+    /* set column widths roughly */
+    const headers=Object.keys(rows[0]||{});
+    ws["!cols"]=headers.map(h=>{
+      const maxLen=Math.max(h.length,...rows.map(r=>String(r[h]||"").length));
+      return {wch:Math.min(Math.max(maxLen+2,10),60)};
+    });
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"Convey Jobs");
+    XLSX.writeFile(wb,"convey-jobs-"+todayStr()+".xlsx");
+    toast("Export Excel สำเร็จ ✓ ("+rows.length+" งาน)","ok");
+  }).catch(e=>{
+    toast("โหลด Excel library ไม่สำเร็จ: "+(e&&e.message||e)+" — กดปุ่ม CSV แทนได้","err");
+  });
+}
+function doExportCSV(){
+  if(!DB.jobs.length){toast("ยังไม่มีงานให้ export","err");return;}
+  const rows=buildExportRows();
+  const headers=Object.keys(rows[0]||{});
+  const csvEsc=v=>{const s=String(v==null?"":v);return /[,"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+  const csv=headers.join(",")+"\n"+rows.map(r=>headers.map(h=>csvEsc(r[h])).join(",")).join("\n");
+  /* UTF-8 BOM so Excel reads Thai correctly */
+  const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download="convey-jobs-"+todayStr()+".csv";a.click();
+  toast("Export CSV สำเร็จ ✓ ("+rows.length+" งาน)","ok");
 }
 function handleImport(file){
   if(!file)return;

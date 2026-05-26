@@ -182,8 +182,20 @@ tbody tr:last-child td{border-bottom:none;}
 .vax-result.na{background:var(--gray-l);border:1px solid var(--line);}
 .vax-result ul{margin:6px 0 0 4px;list-style:none;}
 .vax-result li{padding:3px 0;display:flex;gap:7px;align-items:flex-start;}
-.cost-row{display:grid;grid-template-columns:1fr 170px 30px;gap:9px;margin-bottom:7px;align-items:center;}
+.cost-row{display:grid;grid-template-columns:1fr 170px 30px;gap:9px 9px;margin-bottom:11px;align-items:center;padding:8px;background:#fafafa;border:1px solid #f1f5f9;border-radius:8px;}
+.cost-row .cost-note{grid-column:1 / -1;font-size:12px;padding:6px 10px;background:#fff;border:1px solid var(--line);border-radius:6px;}
 .cost-rm{border:none;background:none;color:var(--red);cursor:pointer;font-size:15px;}
+.combo{position:relative;}
+.combo input[type=text]{padding-right:34px;}
+.combo-caret{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:none;background:transparent;cursor:pointer;font-size:11px;color:#64748b;padding:8px 10px;line-height:1;}
+.combo-caret:hover{color:var(--brand-d);}
+.combo-panel{display:none;position:absolute;top:calc(100% + 3px);left:0;right:0;max-height:260px;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.10);z-index:100;}
+.combo-panel.open{display:block;}
+.combo-item{padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f1f5f9;color:#1e293b;}
+.combo-item:last-child{border-bottom:none;}
+.combo-item:hover,.combo-item.hi{background:#fff7ed;color:var(--brand-d);}
+.combo-item.new-entry{font-style:italic;color:var(--brand-d);background:#fffbeb;}
+.combo-empty{padding:8px 12px;color:var(--mut);font-size:12px;font-style:italic;}
 .fin-sum{display:flex;flex-wrap:wrap;gap:10px;}
 .fin-sum>div{flex:1 1 160px;background:var(--gray-l);border-radius:9px;padding:10px 14px;
   display:flex;flex-direction:column;gap:2px;}
@@ -278,13 +290,13 @@ const JOB_TYPES = {
 const TYPE_ORDER=["export_permit","export_cargo","import_permit","import_cargo","rabies_titer","vaccine_book","transport","other"];
 const VAX_GROUPS={combined:"วัคซีนรวม",lepto:"วัคซีนป้องกันโรคฉี่หนู (Leptospirosis)",rabies:"วัคซีนป้องกันโรคพิษสุนัขบ้า (Rabies)"};
 const TH_MON=["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
-const COUNTRIES=["ไทย (Thailand)","จีน (China)","สหรัฐอเมริกา (USA)","สหราชอาณาจักร (United Kingdom)","ออสเตรเลีย (Australia)","นิวซีแลนด์ (New Zealand)","ญี่ปุ่น (Japan)","เกาหลีใต้ (South Korea)","สิงคโปร์ (Singapore)","มาเลเซีย (Malaysia)","ฮ่องกง (Hong Kong)","ไต้หวัน (Taiwan)","เยอรมนี (Germany)","ฝรั่งเศส (France)","เนเธอร์แลนด์ (Netherlands)","สวิตเซอร์แลนด์ (Switzerland)","แคนาดา (Canada)","อินเดีย (India)","สหรัฐอาหรับเอมิเรตส์ (UAE)","กาตาร์ (Qatar)","เวียดนาม (Vietnam)","อินโดนีเซีย (Indonesia)","ฟิลิปปินส์ (Philippines)","อิตาลี (Italy)","สเปน (Spain)","สวีเดน (Sweden)","นอร์เวย์ (Norway)","เดนมาร์ก (Denmark)","เบลเยียม (Belgium)","ออสเตรีย (Austria)"];
+const COUNTRIES=["ไทย (Thailand)","จีน (China)","สหรัฐอเมริกา (USA)","สหราชอาณาจักร (United Kingdom)","ออสเตรเลีย (Australia)","นิวซีแลนด์ (New Zealand)","ญี่ปุ่น (Japan)","เกาหลีใต้ (South Korea)","สิงคโปร์ (Singapore)","มาเลเซีย (Malaysia)","ฮ่องกง (Hong Kong)","ไต้หวัน (Taiwan)","เยอรมนี (Germany)","ฝรั่งเศส (France)","เนเธอร์แลนด์ (Netherlands)","สวิตเซอร์แลนด์ (Switzerland)","แคนาดา (Canada)","อินเดีย (India)","สหรัฐอาหรับเอมิเรตส์ (UAE)","กาตาร์ (Qatar)","เวียดนาม (Vietnam)","อินโดนีเซีย (Indonesia)","ฟิลิปปินส์ (Philippines)","อิตาลี (Italy)","สเปน (Spain)","สวีเดน (Sweden)","นอร์เวย์ (Norway)","เดนมาร์ก (Denmark)","เบลเยียม (Belgium)","ออสเตรีย (Austria)","ไอร์แลนด์ (Ireland)","ฟินแลนด์ (Finland)","โปแลนด์ (Poland)","สาธารณรัฐเช็ก (Czech Republic)","โปรตุเกส (Portugal)","กรีซ (Greece)","ฮังการี (Hungary)","โรมาเนีย (Romania)","ลักเซมเบิร์ก (Luxembourg)","ไอซ์แลนด์ (Iceland)","ตุรกี (Turkey)","อิสราเอล (Israel)","ซาอุดีอาระเบีย (Saudi Arabia)","บาห์เรน (Bahrain)","คูเวต (Kuwait)","โอมาน (Oman)","อียิปต์ (Egypt)","แอฟริกาใต้ (South Africa)","เคนยา (Kenya)","บราซิล (Brazil)","อาร์เจนตินา (Argentina)","ชิลี (Chile)","เม็กซิโก (Mexico)","กัมพูชา (Cambodia)","ลาว (Laos)","เมียนมา (Myanmar)","บังคลาเทศ (Bangladesh)","ปากีสถาน (Pakistan)","ศรีลังกา (Sri Lanka)","มาเก๊า (Macau)","มัลดีฟส์ (Maldives)","รัสเซีย (Russia)"];
 const MIXED_BREED="พันธุ์ผสม (Mixed)";
 const OTHER_BREED="อื่นๆ — พิมพ์เอง";
 const OTHER_COUNTRY="อื่นๆ — ระบุประเทศเอง";
-const DOG_BREEDS=["Poodle (พุดเดิ้ล)","Pomeranian (ปอมเมอเรเนียน)","Shih Tzu (ชิห์สุ)","Golden Retriever (โกลเด้น รีทรีฟเวอร์)","Labrador Retriever (ลาบราดอร์ รีทรีฟเวอร์)","Chihuahua (ชิวาวา)","French Bulldog (เฟรนช์ บูลด็อก)","English Bulldog (อิงลิช บูลด็อก)","Beagle (บีเกิ้ล)","Siberian Husky (ไซบีเรียน ฮัสกี้)","German Shepherd (เยอรมัน เชพเพิร์ด)","Pug (ปั๊ก)","Pembroke Welsh Corgi (คอร์กี้)","Dachshund (ดัชชุน)","Maltese (มอลทีส)","Yorkshire Terrier (ยอร์กเชียร์ เทอร์เรีย)","Jack Russell Terrier (แจ็ค รัสเซลล์ เทอร์เรีย)","Border Collie (บอร์เดอร์ คอลลี่)","Rottweiler (ร็อตไวเลอร์)","Miniature Schnauzer (มินิเอเจอร์ ชเนาเซอร์)","Thai Bangkaew (ไทยบางแก้ว)","Thai Ridgeback (ไทยหลังอาน)","Chow Chow (เชาเชา)","Cocker Spaniel (ค็อกเกอร์ สแปเนียล)","Samoyed (ซามอยด์)","Shiba Inu (ชิบะ อินุ)","Bichon Frise (บิชอง ฟริเซ่)","Cavalier King Charles Spaniel (คาวาเลียร์ คิง ชาร์ลส)","Doberman (โดเบอร์แมน)","Great Dane (เกรท เดน)","Australian Shepherd (ออสเตรเลียน เชพเพิร์ด)","Akita (อาคิตะ)"];
-const CAT_BREEDS=["Persian (เปอร์เซีย)","Scottish Fold (สก็อตทิช โฟลด์)","British Shorthair (บริติช ชอร์ตแฮร์)","American Shorthair (อเมริกัน ชอร์ตแฮร์)","Maine Coon (เมนคูน)","Siamese (วิเชียรมาศ)","Ragdoll (แร็กดอลล์)","Munchkin (มันช์กิน)","Bengal (เบงกอล)","Sphynx (สฟิงซ์)","Exotic Shorthair (เอ็กโซติก ชอร์ตแฮร์)","Russian Blue (รัสเซียน บลู)","Norwegian Forest (นอร์วีเจียน ฟอเรสต์)","Khao Manee (ขาวมณี)","Korat (โคราช/สีสวาด)","Abyssinian (อะบิสซิเนียน)","Devon Rex (เดวอน เร็กซ์)","Domestic Shorthair (ขนสั้นทั่วไป)"];
-const COST_CATS=["ค่าใบอนุญาตนำเข้า","ค่าใบอนุญาตส่งออก","ค่าบริการ คุณเอ๋","Transair","ค่าน้ำมัน","ค่าคอมมิสชั่นปุ๋ย","ค่าคอมมิสชั่นดรีม","ค่าขนส่งโน๊ต","ค่าขนส่งแจ๊ค","ค่าแมสเซนเจอร์ส่งเอกสาร","ค่าโรงแรมฝากเลี้ยง","ค่าผลแลป","ค่าส่งเอกสาร","ค่าใช้จ่ายหมอพิม"];
+const DOG_BREEDS=["Poodle (พุดเดิ้ล)","Toy Poodle (ทอย พุดเดิ้ล)","Pomeranian (ปอมเมอเรเนียน)","Shih Tzu (ชิห์สุ)","Golden Retriever (โกลเด้น รีทรีฟเวอร์)","Labrador Retriever (ลาบราดอร์ รีทรีฟเวอร์)","Chihuahua (ชิวาวา)","French Bulldog (เฟรนช์ บูลด็อก)","English Bulldog (อิงลิช บูลด็อก)","American Bulldog (อเมริกัน บูลด็อก)","Bull Terrier (บูล เทอร์เรีย)","Boston Terrier (บอสตัน เทอร์เรีย)","Beagle (บีเกิ้ล)","Siberian Husky (ไซบีเรียน ฮัสกี้)","Alaskan Malamute (อลาสกัน มาลามิวท์)","German Shepherd (เยอรมัน เชพเพิร์ด)","Pug (ปั๊ก)","Pembroke Welsh Corgi (คอร์กี้)","Cardigan Welsh Corgi (คาร์ดิแกน คอร์กี้)","Dachshund (ดัชชุน)","Maltese (มอลทีส)","Yorkshire Terrier (ยอร์กเชียร์ เทอร์เรีย)","Jack Russell Terrier (แจ็ค รัสเซลล์ เทอร์เรีย)","Border Collie (บอร์เดอร์ คอลลี่)","Rottweiler (ร็อตไวเลอร์)","Miniature Schnauzer (มินิเอเจอร์ ชเนาเซอร์)","Standard Schnauzer (สแตนดาร์ด ชเนาเซอร์)","Giant Schnauzer (ไจแอนต์ ชเนาเซอร์)","Thai Bangkaew (ไทยบางแก้ว)","Thai Ridgeback (ไทยหลังอาน)","Chow Chow (เชาเชา)","Cocker Spaniel (ค็อกเกอร์ สแปเนียล)","Cavalier King Charles Spaniel (คาวาเลียร์ คิง ชาร์ลส)","Samoyed (ซามอยด์)","Shiba Inu (ชิบะ อินุ)","Akita (อาคิตะ)","Bichon Frise (บิชอง ฟริเซ่)","Doberman (โดเบอร์แมน)","Great Dane (เกรท เดน)","Australian Shepherd (ออสเตรเลียน เชพเพิร์ด)","Bernese Mountain Dog (เบอร์นีส เมาน์เทน ด็อก)","Saint Bernard (เซนต์ เบอร์นาร์ด)","Newfoundland (นิวฟาวด์แลนด์)","Pekingese (ปักกิ่ง)","Lhasa Apso (ลาซา แอปโซ)","Havanese (ฮาวานีส)","Papillon (ปาปิยอง)","Boxer (บ็อกเซอร์)","Greyhound (เกรย์ฮาวด์)","Whippet (วิปเป็ต)","Italian Greyhound (อิตาเลียน เกรย์ฮาวด์)","Dalmatian (ดัลเมเชียน)","Weimaraner (ไวมาราเนอร์)","Pit Bull (พิทบูล)","American Staffordshire Terrier (อเมริกัน สแตฟฟอร์ดเชียร์)","Cane Corso (เคน คอร์โซ)","Mastiff (มาสทิฟ)","Bullmastiff (บูลมาสทิฟ)","Tibetan Mastiff (ทิเบตัน มาสทิฟ)","Shar Pei (ชาร์ เป่ย)","Basset Hound (บาสเซ็ต ฮาวด์)","Saluki (ซาลูกิ)","Australian Cattle Dog (ออสเตรเลียน แคทเทิล ด็อก)","Vizsla (วิซลา)","Brittany (บริทตานี)","Belgian Malinois (เบลเจียน มาลินอยส์)","Schnoodle (ชนูดเดิล)","Maltipoo (มอลทิพู)","Goldendoodle (โกลเด้นดูดเดิ้ล)","Labradoodle (ลาบราดูดเดิ้ล)"];
+const CAT_BREEDS=["Persian (เปอร์เซีย)","Himalayan (หิมาลายัน)","Scottish Fold (สก็อตทิช โฟลด์)","Scottish Straight (สก็อตทิช สเตรท)","British Shorthair (บริติช ชอร์ตแฮร์)","British Longhair (บริติช ลองแฮร์)","American Shorthair (อเมริกัน ชอร์ตแฮร์)","American Curl (อเมริกัน เคิร์ล)","Maine Coon (เมนคูน)","Siamese (วิเชียรมาศ)","Ragdoll (แร็กดอลล์)","Ragamuffin (แร็กกามัฟฟิน)","Munchkin (มันช์กิน)","Bengal (เบงกอล)","Sphynx (สฟิงซ์)","Exotic Shorthair (เอ็กโซติก ชอร์ตแฮร์)","Russian Blue (รัสเซียน บลู)","Norwegian Forest (นอร์วีเจียน ฟอเรสต์)","Khao Manee (ขาวมณี)","Korat (โคราช/สีสวาด)","Suphalak (ศุภลักษณ์)","Abyssinian (อะบิสซิเนียน)","Somali (โซมาลี)","Devon Rex (เดวอน เร็กซ์)","Cornish Rex (คอร์นิช เร็กซ์)","Selkirk Rex (เซลเคิร์ก เร็กซ์)","Burmese (เบอร์มีส)","Tonkinese (ทองคินีส)","Birman (เบอร์แมน)","Turkish Angora (ตุรกี อังโกรา)","Turkish Van (ตุรกี แวน)","Savannah (สะวันนา)","Oriental Shorthair (โอเรียนทอล ชอร์ตแฮร์)","Manx (แมงซ์)","Bombay (บอมเบย์)","Chartreux (ชาร์เทรอ)","LaPerm (ลาเพิร์ม)","Domestic Shorthair (ขนสั้นทั่วไป)","Domestic Longhair (ขนยาวทั่วไป)"];
+const COST_CATS=["ค่าใบอนุญาตนำเข้า","ค่าใบอนุญาตส่งออก","ค่าบริการ คุณเอ๋","Transair","ค่าน้ำมัน","ค่าคอมมิสชั่นปุ๋ย","ค่าคอมมิสชั่นดรีม","ค่าขนส่งโน๊ต","ค่าขนส่งแจ๊ค","ค่าแมสเซนเจอร์ส่งเอกสาร","ค่าโรงแรมฝากเลี้ยง","ค่าผลแลป","ค่าส่งเอกสาร","ค่าใช้จ่ายหมอพิม","ค่า Health Certificate","ค่ากรงเดินทาง (Travel Crate)","ค่ากรงไม้/IATA Crate","ค่าวัคซีน/ยา","ค่าตรวจไมโครชิพ","ค่าทำหมัน/ยาสลบ","ค่าตรวจ Rabies Titer","ค่า Cargo สายการบิน","ค่า Handling สนามบิน","ค่า X-ray/CT/Lab","ค่าคอมมิชชั่น Agent","ค่าที่ปรึกษากฎหมายปลายทาง","ค่าใช้จ่ายอื่นๆ"];
 const LS_KEY="conveyDashboard_v1";
 
 /* ============================ STATE ============================ */
@@ -1094,7 +1106,7 @@ function renderForm(){
   if(Array.isArray(j.pets)&&j.pets.length){
     formPets=j.pets.map(clonePetToForm);
   }else{formPets=[blankFormPet()];}
-  formCosts=(j.costs||[]).map(c=>({cat:c.cat||"",amount:(c.amount==null||c.amount==="")?"":String(c.amount)}));
+  formCosts=(j.costs||[]).map(c=>({cat:c.cat||"",amount:(c.amount==null||c.amount==="")?"":String(c.amount),note:c.note||""}));
   formAttachments=(j.attachments||[]).slice();
   ["origin","dest"].forEach(w=>{const v=(w==="origin"?j.originCountry:j.destCountry)||"";
     formCountry[w]=!v?{sel:"",extra:""}:(COUNTRIES.indexOf(v)>=0?{sel:v,extra:""}:{sel:OTHER_COUNTRY,extra:v});});
@@ -1103,11 +1115,16 @@ function renderForm(){
   else if(dupSrc)h+='<div class="hint">📋 กำลังทำสำเนาจากงาน <b>'+esc(dupSrc.jobNo||"")+'</b> — คัดลอกข้อมูลลูกค้า/สัตว์เลี้ยง/วัคซีนมาให้แล้ว • เปลี่ยน "ประเภทงาน" ให้ถูกต้อง แล้วกดบันทึก จะได้เป็นงานใหม่ (เลขที่งานใหม่ • การเงินเริ่มใหม่)</div>';
 
   /* customer */
+  const customerNames=[...new Set(DB.jobs.filter(jb=>!editing||jb.id!==editing.id).map(jb=>jb.customerName).filter(x=>x))].sort();
+  h+='<datalist id="customerList">'+customerNames.map(c=>'<option value="'+esc(c)+'">').join("")+'</datalist>';
   h+='<div class="form-card"><h3>👤 ข้อมูลลูกค้า & งาน'+
      '<span style="margin-left:auto;font-size:12px;font-weight:700;color:var(--brand-d)">'+
      (editing?("เลขที่งาน: "+esc(j.jobNo||"-")):"เลขที่งาน: ออกอัตโนมัติเมื่อบันทึก")+'</span></h3>';
+  h+='<div id="custFillBanner" style="display:none;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:13px"></div>';
   h+='<div class="form-grid">';
-  h+=field("ชื่อลูกค้า","f-cname","text",j.customerName,true);
+  h+='<div class="f"><label>ชื่อลูกค้า <span class="req">*</span></label>'+
+     '<input type="text" id="f-cname" list="customerList" value="'+esc(j.customerName||"")+'" data-act="custname" autocomplete="off">'+
+     '<div class="mini">เริ่มพิมพ์ — รายชื่อลูกค้าเก่าจะขึ้นมาให้เลือก</div></div>';
   h+=field("เบอร์โทรศัพท์","f-cphone","tel",j.customerPhone);
   h+='<div class="f" id="originBox"></div>';
   h+='<div class="f" id="destBox"></div>';
@@ -1193,6 +1210,7 @@ function paintCosts(){
       '</select>'+
       '<input type="number" min="0" step="1" placeholder="จำนวนเงิน (บาท)" value="'+esc(c.amount)+'" data-act="costin" data-i="'+i+'" data-f="amount">'+
       '<button class="cost-rm" data-act="rmcost" data-i="'+i+'" title="ลบรายการ">✕</button>'+
+      '<input type="text" class="cost-note" placeholder="รายละเอียด/หมายเหตุ (เช่น เลขใบเสร็จ, ชื่อ supplier, จำนวนเที่ยว)" value="'+esc(c.note||"")+'" data-act="costin" data-i="'+i+'" data-f="note">'+
     '</div>';
   });
   box.innerHTML=h;
@@ -1241,7 +1259,15 @@ function syncPetsFromDOM(){
     if(g("sex"))p.sex=g("sex").value;
     if(g("dob"))p.dob=g("dob").value;
     if(g("species"))p.species=g("species").value;
-    if(g("breedsel"))p.breedSel=g("breedsel").value;
+    if(g("breedin")){
+      const v=(g("breedin").value||"").trim();
+      const sp2=p.species||"";
+      const l2=sp2==="สุนัข"?DOG_BREEDS:sp2==="แมว"?CAT_BREEDS:[];
+      if(!v){p.breedSel="";}
+      else if(l2.indexOf(v)>=0){p.breedSel=v;p.breedExtra="";}
+      else if(v===MIXED_BREED){p.breedSel=MIXED_BREED;}
+      else{p.breedSel=OTHER_BREED;p.breedExtra=v;}
+    }
     if(g("breedfree"))p.breedSel=g("breedfree").value;
     if(g("breedextra"))p.breedExtra=g("breedextra").value;
     if(g("micro"))p.micro=g("micro").value;
@@ -1253,25 +1279,72 @@ function petField(idx,prop,lbl,type,val){
 }
 function breedFieldHTML(p,idx){
   const sp=p.species||"";
-  const list=sp==="สุนัข"?DOG_BREEDS:sp==="แมว"?CAT_BREEDS:[];
+  let curr="";
+  if(p.breedSel===MIXED_BREED)curr=MIXED_BREED;
+  else if(p.breedSel===OTHER_BREED)curr=p.breedExtra||"";
+  else curr=p.breedSel||"";
   let h='<label>สายพันธุ์</label>';
   if(!sp){
-    h+='<input type="text" id="f-p'+idx+'-breedfree" value="'+esc(p.breedSel)+'" data-act="petin" data-pet="'+idx+'" data-f="breedSel" placeholder="เลือกประเภท (สุนัข/แมว) เพื่อดูรายการ หรือพิมพ์เอง">';
+    h+='<input type="text" id="f-p'+idx+'-breedfree" value="'+esc(curr)+'" data-act="petin" data-pet="'+idx+'" data-f="breedSel" placeholder="เลือกประเภท (สุนัข/แมว) เพื่อดูรายการ หรือพิมพ์เอง">';
   }else{
-    let sel=p.breedSel;
-    if(!(sel===""||sel===MIXED_BREED||sel===OTHER_BREED||list.indexOf(sel)>=0)){sel="";p.breedSel="";}
-    const opts=[""].concat(list,[MIXED_BREED,OTHER_BREED]);
-    h+='<select id="f-p'+idx+'-breedsel" data-act="breedsel" data-pet="'+idx+'">'+
-      opts.map(o=>'<option value="'+esc(o)+'"'+(o===sel?" selected":"")+'>'+esc(o||"— เลือกสายพันธุ์ —")+'</option>').join("")+'</select>';
-    if(sel===MIXED_BREED){
+    h+='<div class="combo" id="breed-combo-'+idx+'">'+
+       '<input type="text" id="f-p'+idx+'-breedin" value="'+esc(curr)+'" placeholder="พิมพ์ค้นหาสายพันธุ์ เช่น Poodle / ปอม / Persian" autocomplete="off" data-act="breedinput" data-pet="'+idx+'">'+
+       '<button type="button" class="combo-caret" data-act="breedtoggle" data-pet="'+idx+'" tabindex="-1" aria-label="แสดงรายการสายพันธุ์">▼</button>'+
+       '<div class="combo-panel" id="breed-panel-'+idx+'"></div>'+
+       '</div>';
+    if(p.breedSel===MIXED_BREED){
       h+='<label style="margin-top:8px">ระบุสายพันธุ์ที่ผสม</label>'+
-         '<input type="text" id="f-p'+idx+'-breedextra" value="'+esc(p.breedExtra)+'" data-act="petin" data-pet="'+idx+'" data-f="breedExtra" placeholder="เช่น Poodle x Pomeranian">';
-    }else if(sel===OTHER_BREED){
-      h+='<label style="margin-top:8px">ระบุสายพันธุ์ (format: English (ไทย))</label>'+
-         '<input type="text" id="f-p'+idx+'-breedextra" value="'+esc(p.breedExtra)+'" data-act="petin" data-pet="'+idx+'" data-f="breedExtra" placeholder="เช่น Spitz (สปิตซ์)">';
+         '<input type="text" id="f-p'+idx+'-breedextra" value="'+esc(p.breedExtra||"")+'" data-act="petin" data-pet="'+idx+'" data-f="breedExtra" placeholder="เช่น Poodle x Pomeranian">';
     }
   }
   return h;
+}
+function paintBreedPanel(idx,filter){
+  const panel=$("#breed-panel-"+idx);if(!panel)return;
+  const p=formPets[idx];if(!p)return;
+  const sp=p.species||"";
+  const list=sp==="สุนัข"?DOG_BREEDS:sp==="แมว"?CAT_BREEDS:[];
+  const f=(filter||"").toLowerCase().trim();
+  let matched;
+  if(!f){matched=list.slice();}
+  else{
+    const exact=list.filter(c=>c.toLowerCase()===f);
+    const starts=list.filter(c=>c.toLowerCase()!==f&&c.toLowerCase().indexOf(f)===0);
+    const contains=list.filter(c=>{const lc=c.toLowerCase();return lc!==f&&lc.indexOf(f)>0;});
+    matched=exact.concat(starts,contains);
+  }
+  let h=matched.map(c=>'<div class="combo-item" data-act="breedpick" data-pet="'+idx+'" data-val="'+esc(c)+'">'+esc(c)+'</div>').join("");
+  /* Mixed option — show if no filter, or filter matches "mixed/ผสม" */
+  if(!f||MIXED_BREED.toLowerCase().indexOf(f)>=0||"พันธุ์ผสม".indexOf(f)>=0||"mixed".indexOf(f)>=0){
+    h+='<div class="combo-item" data-act="breedpick" data-pet="'+idx+'" data-val="'+esc(MIXED_BREED)+'" data-mixed="1">🧬 '+esc(MIXED_BREED)+'</div>';
+  }
+  /* Custom option — if user typed something not in list */
+  if(f&&list.indexOf(filter)<0&&filter!==MIXED_BREED){
+    h+='<div class="combo-item new-entry" data-act="breedpick" data-pet="'+idx+'" data-val="'+esc(filter)+'" data-custom="1">+ ใช้ "'+esc(filter)+'" เป็นสายพันธุ์ (กำหนดเอง)</div>';
+  }
+  if(!h)h='<div class="combo-empty">ไม่พบสายพันธุ์ — พิมพ์ต่อเพื่อเพิ่มเอง</div>';
+  panel.innerHTML=h;
+}
+function openBreedPanel(idx){
+  const p=$("#breed-panel-"+idx);if(!p)return;
+  document.querySelectorAll(".combo-panel.open").forEach(el=>{if(el!==p)el.classList.remove("open");});
+  p.classList.add("open");
+}
+function pickBreed(idx,val,opts){
+  opts=opts||{};
+  const p=formPets[idx];if(!p)return;
+  syncPetsFromDOM(); /* preserve current typing in other fields */
+  if(opts.mixed){p.breedSel=MIXED_BREED;}
+  else if(opts.custom){p.breedSel=OTHER_BREED;p.breedExtra=val||"";}
+  else{
+    const sp=p.species||"";
+    const list=sp==="สุนัข"?DOG_BREEDS:sp==="แมว"?CAT_BREEDS:[];
+    if(val===MIXED_BREED){p.breedSel=MIXED_BREED;}
+    else if(list.indexOf(val)>=0){p.breedSel=val;p.breedExtra="";}
+    else{p.breedSel=OTHER_BREED;p.breedExtra=val||"";}
+  }
+  closeAllCountryPanels();
+  renderPets();
 }
 function petCardHTML(p,idx,dir){
   let h='<div class="form-card"><h3>🐾 สัตว์เลี้ยงตัวที่ '+(idx+1)+(p.name?(' — '+esc(p.name)):'')+
@@ -1331,9 +1404,12 @@ function renderPets(){
   formPets.forEach((p,idx)=>refreshPetVax(idx));
 }
 function syncCountryFromDOM(which){
-  const sel=$("#f-"+which+"-sel"),extra=$("#f-"+which+"-extra");
-  if(sel)formCountry[which].sel=sel.value;
-  if(extra)formCountry[which].extra=extra.value;
+  const inp=$("#f-"+which+"-input");
+  if(!inp)return;
+  const v=(inp.value||"").trim();
+  if(!v){formCountry[which]={sel:"",extra:""};}
+  else if(COUNTRIES.indexOf(v)>=0){formCountry[which]={sel:v,extra:""};}
+  else{formCountry[which]={sel:OTHER_COUNTRY,extra:v};}
 }
 function resolveCountry(which){
   const s=formCountry[which];
@@ -1341,19 +1417,93 @@ function resolveCountry(which){
 }
 function paintCountry(which){
   const box=$("#"+which+"Box");if(!box)return;
-  syncCountryFromDOM(which);
-  const st=formCountry[which];
+  /* don't sync first — we're (re)rendering from formCountry state */
+  const curr=resolveCountry(which);
   const lbl=which==="origin"?"ประเทศต้นทาง":"ประเทศปลายทาง";
   let h='<label>'+lbl+'</label>';
-  h+='<select id="f-'+which+'-sel" data-act="countrysel" data-which="'+which+'">'+
-     '<option value="">— เลือกประเทศ —</option>'+
-     COUNTRIES.map(o=>'<option value="'+esc(o)+'"'+(st.sel===o?" selected":"")+'>'+esc(o)+'</option>').join("")+
-     '<option value="'+esc(OTHER_COUNTRY)+'"'+(st.sel===OTHER_COUNTRY?" selected":"")+'>'+esc(OTHER_COUNTRY)+'</option>'+
-     '</select>';
-  if(st.sel===OTHER_COUNTRY){
-    h+='<input type="text" id="f-'+which+'-extra" value="'+esc(st.extra)+'" placeholder="ระบุชื่อประเทศ เช่น บราซิล (Brazil)" style="margin-top:7px">';
-  }
+  h+='<div class="combo" id="'+which+'-combo">'+
+     '<input type="text" id="f-'+which+'-input" value="'+esc(curr)+'" placeholder="พิมพ์ชื่อประเทศ เช่น Japan / ญี่ปุ่น" autocomplete="off" data-act="countryinput" data-which="'+which+'">'+
+     '<button type="button" class="combo-caret" data-act="countrytoggle" data-which="'+which+'" tabindex="-1" aria-label="แสดงรายการประเทศ">▼</button>'+
+     '<div class="combo-panel" id="'+which+'-panel"></div>'+
+     '</div>';
   box.innerHTML=h;
+  paintCountryPanel(which,curr);
+}
+function paintCountryPanel(which,filter){
+  const panel=$("#"+which+"-panel");if(!panel)return;
+  const f=(filter||"").toLowerCase().trim();
+  let matched;
+  if(!f){matched=COUNTRIES.slice();}
+  else{
+    /* exact match first, then "starts with", then "contains" */
+    const exact=COUNTRIES.filter(c=>c.toLowerCase()===f);
+    const starts=COUNTRIES.filter(c=>c.toLowerCase()!==f&&c.toLowerCase().indexOf(f)===0);
+    const contains=COUNTRIES.filter(c=>{const lc=c.toLowerCase();return lc!==f&&lc.indexOf(f)>0;});
+    matched=exact.concat(starts,contains);
+  }
+  let h='';
+  if(matched.length===0){
+    h='<div class="combo-empty">ไม่พบประเทศที่ตรงกัน</div>';
+    if(f){h+='<div class="combo-item new-entry" data-act="countrypick" data-which="'+which+'" data-val="'+esc(filter)+'">+ ใช้ "'+esc(filter)+'" เป็นชื่อประเทศ (กำหนดเอง)</div>';}
+  }else{
+    h=matched.map(c=>'<div class="combo-item" data-act="countrypick" data-which="'+which+'" data-val="'+esc(c)+'">'+esc(c)+'</div>').join("");
+    if(f&&matched.indexOf(filter)<0&&matched[0].toLowerCase()!==f){
+      h+='<div class="combo-item new-entry" data-act="countrypick" data-which="'+which+'" data-val="'+esc(filter)+'">+ ใช้ "'+esc(filter)+'" เป็นชื่อประเทศ (กำหนดเอง)</div>';
+    }
+  }
+  panel.innerHTML=h;
+}
+function openCountryPanel(which){
+  const p=$("#"+which+"-panel");if(!p)return;
+  document.querySelectorAll(".combo-panel.open").forEach(el=>{if(el!==p)el.classList.remove("open");});
+  p.classList.add("open");
+}
+function closeAllCountryPanels(){
+  document.querySelectorAll(".combo-panel.open").forEach(el=>el.classList.remove("open"));
+}
+function pickCountry(which,val){
+  const inp=$("#f-"+which+"-input");
+  if(inp)inp.value=val||"";
+  syncCountryFromDOM(which);
+  paintCountryPanel(which,val||"");
+  closeAllCountryPanels();
+}
+function findCustomerJobs(name){
+  if(!name)return [];
+  const lc=name.trim().toLowerCase();
+  return DB.jobs.filter(jb=>(jb.customerName||"").trim().toLowerCase()===lc&&jb.id!==STATE.editId)
+    .sort((a,b)=>{const ta=new Date(b.updatedAt||b.createdAt||0).getTime();const tb=new Date(a.updatedAt||a.createdAt||0).getTime();return ta-tb;});
+}
+function checkRepeatCustomer(name,fromChange){
+  /* don't suggest when editing existing job */
+  if(STATE.editId)return;
+  const banner=$("#custFillBanner");if(!banner)return;
+  const matches=findCustomerJobs(name);
+  if(!matches.length){banner.style.display="none";STATE._custFillDismissed=false;return;}
+  if(STATE._custFillDismissed&&STATE._custFillLastName===name)return;
+  STATE._custFillLastName=name;
+  const src=matches[0];
+  const petsStr=(src.pets||[]).map(p=>p.name||"-").join(", ")||"-";
+  banner.style.display="block";
+  banner.innerHTML='<b>🔁 ลูกค้าเก่า:</b> '+esc(src.customerName||"")+
+    ' — งานล่าสุด <b>'+esc(src.jobNo||"-")+'</b> ('+esc(src.originCountry||"-")+' → '+esc(src.destCountry||"-")+', 🐾 '+esc(petsStr)+')'+
+    ' <button class="btn sm primary" data-act="custfill" data-id="'+esc(src.id)+'" style="margin-left:8px">⬇ ใช้ข้อมูลลูกค้านี้</button>'+
+    ' <button class="btn sm" data-act="custfilldismiss" style="margin-left:4px">ปิด</button>'+
+    ' <div class="mini" style="margin-top:5px">จะนำมาเติม: เบอร์ • ประเทศต้นทาง/ปลายทาง • รายการสัตว์เลี้ยง (ชื่อ/ไมโครชิพ/พันธุ์/วัคซีน) — แก้ไขได้ก่อนบันทึก</div>';
+}
+function fillFromCustomer(src){
+  if(!src)return;
+  if($("#f-cphone")&&!$("#f-cphone").value)$("#f-cphone").value=src.customerPhone||"";
+  ["origin","dest"].forEach(w=>{
+    const v=(w==="origin"?src.originCountry:src.destCountry)||"";
+    formCountry[w]=!v?{sel:"",extra:""}:(COUNTRIES.indexOf(v)>=0?{sel:v,extra:""}:{sel:OTHER_COUNTRY,extra:v});
+    paintCountry(w);
+  });
+  if(Array.isArray(src.pets)&&src.pets.length){
+    formPets=src.pets.map(clonePetToForm);
+    renderPets();
+  }
+  toast("ดึงข้อมูลลูกค้าเก่ามาเติมแล้ว — ตรวจ/แก้ไขก่อนบันทึก","ok");
 }
 function field(lbl,id,type,val,req){
   const r=req?' <span class="req">*</span>':'';
@@ -1441,7 +1591,7 @@ function readFormJob(){
   const payR=document.querySelector('input[name=paystat]:checked');
   job.paid=payR?payR.value==="pay":false;
   job.sellPrice=parseFloat($("#f-sell")?$("#f-sell").value:"")||0;
-  job.costs=formCosts.filter(c=>c.cat||(c.amount!==""&&c.amount!=null)).map(c=>({cat:c.cat,amount:parseFloat(c.amount)||0}));
+  job.costs=formCosts.filter(c=>c.cat||(c.amount!==""&&c.amount!=null)||(c.note&&c.note.trim())).map(c=>({cat:c.cat,amount:parseFloat(c.amount)||0,note:(c.note||"").trim()}));
   job.paidDate=(job.paid&&$("#f-paiddate"))?$("#f-paiddate").value:"";
   job.exportCond=dir==="export"?getCond():"";
   job.notes=$("#f-notes").value.trim();
@@ -1569,7 +1719,7 @@ document.addEventListener("click",e=>{
   else if(act==="rmvax"){syncPetsFromDOM();formPets[+el.dataset.pet].vax[el.dataset.grp].splice(+el.dataset.i,1);renderPets();}
   else if(act==="addpet"){syncPetsFromDOM();formPets.push(blankFormPet());renderPets();}
   else if(act==="rmpet"){syncPetsFromDOM();formPets.splice(+el.dataset.pet,1);renderPets();}
-  else if(act==="addcost"){formCosts.push({cat:"",amount:""});paintCosts();refreshFinance();}
+  else if(act==="addcost"){formCosts.push({cat:"",amount:"",note:""});paintCosts();refreshFinance();}
   else if(act==="rmcost"){formCosts.splice(+el.dataset.i,1);paintCosts();refreshFinance();}
   else if(act==="savejob"){saveJobFromForm();}
   else if(act==="export"){doExport();}
@@ -1608,7 +1758,31 @@ document.addEventListener("click",e=>{
     })();
   }
   else if(act==="wipe"){if(confirm("ยืนยันลบข้อมูลทั้งหมดในเครื่องนี้?")){DB.jobs=[];saveLocal();toast("ลบข้อมูลแล้ว");render();}}
+  else if(act==="countrytoggle"){
+    const which=el.dataset.which;const p=$("#"+which+"-panel");
+    if(p&&p.classList.contains("open")){closeAllCountryPanels();}
+    else{const inp=$("#f-"+which+"-input");paintCountryPanel(which,inp?inp.value:"");openCountryPanel(which);if(inp)inp.focus();}
+  }
+  else if(act==="countrypick"){pickCountry(el.dataset.which,el.dataset.val||"");}
+  else if(act==="breedtoggle"){
+    const idx=+el.dataset.pet;const p=$("#breed-panel-"+idx);
+    if(p&&p.classList.contains("open")){closeAllCountryPanels();}
+    else{const inp=$("#f-p"+idx+"-breedin");paintBreedPanel(idx,inp?inp.value:"");openBreedPanel(idx);if(inp)inp.focus();}
+  }
+  else if(act==="breedpick"){pickBreed(+el.dataset.pet,el.dataset.val||"",{mixed:el.dataset.mixed==="1",custom:el.dataset.custom==="1"});}
+  else if(act==="custfill"){
+    const src=getJob(el.dataset.id);if(!src)return;
+    fillFromCustomer(src);
+    const banner=$("#custFillBanner");if(banner)banner.style.display="none";
+  }
+  else if(act==="custfilldismiss"){const b=$("#custFillBanner");if(b)b.style.display="none";STATE._custFillDismissed=true;}
 });
+/* close combo panels when clicking outside */
+document.addEventListener("click",e=>{
+  if(!e.target.closest(".combo"))closeAllCountryPanels();
+},true);
+/* ESC to close combo panels */
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeAllCountryPanels();});
 document.addEventListener("input",e=>{
   const el=e.target.closest("[data-act]");if(!el)return;
   const act=el.dataset.act;
@@ -1623,6 +1797,17 @@ document.addEventListener("input",e=>{
   else if(act==="recin"){setBE("be-record",el.value);}
   else if(act==="costin"){if(formCosts[+el.dataset.i])formCosts[+el.dataset.i][el.dataset.f]=el.value;refreshFinance();}
   else if(act==="teamin"){if(DB.team[+el.dataset.i])DB.team[+el.dataset.i][el.dataset.f]=el.value;saveLocal();}
+  else if(act==="countryinput"){
+    const which=el.dataset.which;
+    paintCountryPanel(which,el.value);
+    openCountryPanel(which);
+  }
+  else if(act==="breedinput"){
+    const idx=+el.dataset.pet;
+    paintBreedPanel(idx,el.value);
+    openBreedPanel(idx);
+  }
+  else if(act==="custname"){checkRepeatCustomer(el.value);}
   else if(act==="payradio"){
     document.querySelectorAll("#payRow label").forEach(l=>l.classList.remove("on"));
     el.closest("label").classList.add("on");
@@ -1661,8 +1846,9 @@ document.addEventListener("change",e=>{
     syncPetsFromDOM();paintVaxConfig();renderPets();updateTravelLbl();
   }
   else if(el.dataset.act==="speciessel"){syncPetsFromDOM();renderPets();}
-  else if(el.dataset.act==="breedsel"){syncPetsFromDOM();renderPets();}
-  else if(el.dataset.act==="countrysel"){paintCountry(el.dataset.which);}
+  else if(el.dataset.act==="breedinput"){syncPetsFromDOM();renderPets();}
+  else if(el.dataset.act==="countryinput"){syncCountryFromDOM(el.dataset.which);}
+  else if(el.dataset.act==="custname"){checkRepeatCustomer(el.value,true);}
 });
 
 function toggleStep(id,kind,idx){
@@ -1759,7 +1945,7 @@ function buildReportHTML(j){
   });
 
   const total=jobCostTotal(j);const profit=jobProfit(j);
-  let costRows=(j.costs||[]).map(c=>'<tr><td>'+esc(c.cat||"-")+'</td><td class="tot">'+money(c.amount)+'</td></tr>').join("");
+  let costRows=(j.costs||[]).map(c=>'<tr><td>'+esc(c.cat||"-")+(c.note?'<div style="font-size:10px;color:#64748b;margin-top:2px">'+esc(c.note)+'</div>':'')+'</td><td class="tot">'+money(c.amount)+'</td></tr>').join("");
   if(!costRows)costRows='<tr><td colspan="2" style="color:#999">ไม่มีรายการต้นทุน</td></tr>';
   const finHTML='<div class="sec"><h3>การเงิน</h3>'+
     '<table><thead><tr><th>รายการต้นทุน</th><th class="tot">จำนวนเงิน</th></tr></thead><tbody>'+costRows+

@@ -48,6 +48,21 @@ main{flex:1;min-width:0;display:flex;flex-direction:column;}
   border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:500;transition:.12s;
   text-decoration:none;display:inline-block;}
 .attach-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px dashed var(--line);font-size:12.5px;}
+.urgent-card{background:var(--card);border:1px solid var(--line);border-left:4px solid #d97706;border-radius:12px;padding:14px 16px;margin-bottom:18px;}
+.urgent-head{font-size:14px;font-weight:700;margin-bottom:10px;color:#92400e;display:flex;align-items:center;gap:8px;}
+.urgent-list{display:flex;flex-direction:column;gap:6px;}
+.urgent-row{display:flex;align-items:center;gap:10px;padding:8px 11px;background:#f8fafc;border-radius:8px;cursor:pointer;font-size:12.5px;flex-wrap:wrap;transition:.12s;}
+.urgent-row:hover{background:#eef2f6;}
+.urgent-countdown{padding:3px 10px;border-radius:14px;font-size:11px;font-weight:700;white-space:nowrap;min-width:90px;text-align:center;}
+.urgent-countdown.overdue{background:var(--red);color:#fff;}
+.urgent-countdown.today{background:#d97706;color:#fff;}
+.urgent-countdown.warn{background:#fed7aa;color:#9a3412;}
+.urgent-countdown.soft{background:#fef3c7;color:#854d0e;}
+.urgent-countdown.ok{background:var(--gray-l);color:var(--mut);}
+.urgent-meta{flex:1;min-width:240px;}
+.urgent-meta b{color:var(--brand-d);}
+.urgent-assignee{font-size:11px;color:var(--brand-d);font-weight:600;}
+.urgent-travel{font-size:11px;color:var(--mut);}
 .btn:hover{background:var(--gray-l);}
 .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff;}
 .btn.primary:hover{background:var(--brand-d);}
@@ -425,7 +440,7 @@ function ensureDriveToken(){
     try{
       const tc=google.accounts.oauth2.initTokenClient({
         client_id:DB.drive.clientId,
-        scope:"https://www.googleapis.com/auth/drive.file",
+        scope:"https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events",
         callback:(resp)=>{
           if(resp&&resp.access_token){driveToken=resp.access_token;
             driveTokenExp=Date.now()+((resp.expires_in||3600)*1000);resolve(driveToken);}
@@ -528,7 +543,7 @@ function refreshDriveTokenSilently(){
   try{
     const tc=google.accounts.oauth2.initTokenClient({
       client_id:DB.drive.clientId,
-      scope:"https://www.googleapis.com/auth/drive.file",
+      scope:"https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events",
       callback:(resp)=>{
         if(resp&&resp.access_token){
           driveToken=resp.access_token;
@@ -540,6 +555,56 @@ function refreshDriveTokenSilently(){
     });
     tc.requestAccessToken({prompt:"none"});
   }catch(e){}
+}
+async function createCalendarEvent(job){
+  const token=await ensureDriveToken();
+  if(!job.travelDate)throw new Error("งานนี้ยังไม่มีวันเดินทาง — กรอกวันเดินทางก่อน");
+  const t=JOB_TYPES[job.jobType]||{label:job.jobType||""};
+  const summary="🐾 "+(job.jobNo||"")+" "+(t.label||"")+" — "+(job.customerName||"")+" • "+petsShort(job);
+  const desc="📋 "+(job.jobNo||"-")+
+    "\nลูกค้า: "+(job.customerName||"-")+" ("+(job.customerPhone||"-")+")"+
+    "\nสัตว์เลี้ยง: "+petsShort(job)+
+    "\nเส้นทาง: "+(job.originCountry||"?")+" → "+(job.destCountry||"?")+
+    "\nผู้รับผิดชอบ: "+(job.assignee||"-")+
+    "\n\n— สร้างจาก Convey Dashboard";
+  const event={summary,description:desc,
+    start:{date:job.travelDate},end:{date:job.travelDate},
+    reminders:{useDefault:false,overrides:[{method:"popup",minutes:4320},{method:"popup",minutes:1440},{method:"email",minutes:1440}]}};
+  const r=await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events",{
+    method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify(event)});
+  if(!r.ok)throw new Error("สร้าง event ไม่สำเร็จ (HTTP "+r.status+") — ต้องเปิด Calendar API ใน Google Cloud ก่อน");
+  return await r.json();
+}
+async function deleteCalendarEvent(eventId){
+  const token=await ensureDriveToken();
+  const r=await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events/"+encodeURIComponent(eventId),{
+    method:"DELETE",headers:{Authorization:"Bearer "+token}});
+  if(!r.ok&&r.status!==410&&r.status!==404)throw new Error("ลบ event ไม่สำเร็จ (HTTP "+r.status+")");
+}
+function paintCalendar(){
+  const box=$("#calBox");if(!box)return;
+  const editing=STATE.editId?getJob(STATE.editId):null;
+  let h='';
+  if(!driveReady()){
+    h='<div class="hint">⚠️ ต้องเชื่อมต่อ Google ก่อน (แท็บตั้งค่า → Google Drive) จึงจะใช้ Calendar ได้</div>';
+  }else if(!editing){
+    h='<div class="hint">💡 บันทึกงานก่อน 1 ครั้ง แล้วจึงตั้งเตือนใน Calendar ได้</div>';
+  }else{
+    const ce=editing.calendarEvent;
+    if(ce&&ce.id){
+      h='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
+        '<span style="color:var(--done);font-weight:700">✓ ตั้งเตือนใน Calendar แล้ว</span>'+
+        '<a class="btn sm" href="'+esc(ce.link||"https://calendar.google.com")+'" target="_blank" rel="noopener">เปิดใน Calendar</a>'+
+        '<button class="btn sm" data-act="calupdate">🔄 อัปเดต event</button>'+
+        '<button class="btn sm danger" data-act="caldelete">ลบ event</button>'+
+        '</div>';
+      h+='<div class="mini" style="margin-top:6px">เตือนล่วงหน้า 3 วัน + 1 วันก่อนวันเดินทาง (popup + email)</div>';
+    }else{
+      h='<button class="btn primary" data-act="calcreate">📅 สร้างเตือนใน Google Calendar</button>';
+      h+='<div class="mini" style="margin-top:5px">จะสร้าง event ในวันเดินทาง พร้อมแจ้งเตือนล่วงหน้า 3 วัน และ 1 วันก่อน (popup + email)</div>';
+    }
+  }
+  box.innerHTML=h;
 }
 function startDriveAutoRefresh(){
   if(!(DB.drive&&DB.drive.enabled))return;
@@ -703,7 +768,8 @@ function renderDashboard(){
   const closed=jobs.filter(isClosed).length;
   const prog=total-closed;
   const unpaid=jobs.filter(j=>!j.paid).length;
-  let h='<div class="stat-grid">';
+  let h=renderUrgentWidget();
+  h+='<div class="stat-grid">';
   h+=statCard("b1","งานทั้งหมด",total);
   h+=statCard("b2","กำลังดำเนินการ",prog);
   h+=statCard("b3","ปิดจ๊อบแล้ว",closed);
@@ -720,6 +786,7 @@ function renderDashboard(){
   h+=fldInput("ถึงวันที่","f_to","date",f.f_to);
   h+=fldSelect("สถานะเงิน","f_paid",[["","ทั้งหมด"],["paid","จ่ายแล้ว"],["unpaid","ค้างจ่าย"]],f.f_paid);
   h+=fldSelect("สถานะงาน","f_stat",[["","ทั้งหมด"],["open","กำลังทำ"],["closed","ปิดจ๊อบแล้ว"]],f.f_stat);
+  h+=fldInput("ผู้รับผิดชอบ","f_assignee","text",f.f_assignee,"พิมพ์ชื่อ...");
   h+='<button class="btn sm" data-act="clearfilter">ล้างตัวกรอง</button>';
   h+='</div>';
 
@@ -736,7 +803,7 @@ function renderDashboard(){
       h+='<tr>';
       h+='<td><b style="color:var(--brand-d)">'+esc(j.jobNo||"-")+'</b></td>';
       h+='<td><span class="badge bg-type">'+t.icon+" "+esc(t.label)+'</span></td>';
-      h+='<td><b>'+esc(j.customerName||"-")+'</b><div class="mini">'+esc(j.customerPhone||"")+'</div></td>';
+      h+='<td><b>'+esc(j.customerName||"-")+'</b><div class="mini">'+esc(j.customerPhone||"")+'</div>'+(j.assignee?('<div class="mini" style="color:var(--brand-d);font-weight:600">👤 '+esc(j.assignee)+'</div>'):"")+'</td>';
       h+='<td>'+petsCell(j)+'</td>';
       h+='<td>'+esc(j.originCountry||"?")+" → "+esc(j.destCountry||"?")+'</td>';
       h+='<td>'+fmtCE(f.f_datefield==="record"?j.recordDate:j.travelDate)+'<div class="mini">'+(toBE(f.f_datefield==="record"?j.recordDate:j.travelDate)||"")+'</div></td>';
@@ -766,6 +833,35 @@ function vaxBadge(j){
   if(o===true)return '<span class="chip-ok">✓ ผ่าน</span>';
   if(o===false)return '<span class="chip-no">✗ ไม่ผ่าน</span>';
   return '<span class="chip-na">— รอข้อมูล</span>';
+}
+
+function renderUrgentWidget(){
+  const open=DB.jobs.filter(j=>!isClosed(j));
+  if(!open.length)return '';
+  open.sort((a,b)=>{const at=a.travelDate||"9999",bt=b.travelDate||"9999";return at.localeCompare(bt);});
+  const top=open.slice(0,8);
+  const today=parseD(todayStr());
+  let h='<div class="urgent-card"><div class="urgent-head">⚡ งานเร่งด่วน — มี '+open.length+' งานที่ยังไม่ปิด (แสดง '+top.length+' งานใกล้สุด)</div><div class="urgent-list">';
+  top.forEach(j=>{
+    const d=parseD(j.travelDate);let cls='ok',label='ยังไม่ระบุวันเดินทาง';
+    if(d&&today){
+      const days=daysBetween(d,today);
+      if(days<0){cls='overdue';label='เลย '+Math.abs(days)+' วัน';}
+      else if(days===0){cls='today';label='วันนี้!';}
+      else if(days<=7){cls='warn';label='เหลือ '+days+' วัน';}
+      else if(days<=14){cls='soft';label='เหลือ '+days+' วัน';}
+      else{cls='ok';label='เหลือ '+days+' วัน';}
+    }
+    const t=JOB_TYPES[j.jobType]||{icon:"",label:j.jobType||""};
+    h+='<div class="urgent-row" data-act="edit" data-id="'+j.id+'">'+
+       '<span class="urgent-countdown '+cls+'">'+esc(label)+'</span>'+
+       '<span class="urgent-meta"><b>'+esc(j.jobNo||"-")+'</b> • '+t.icon+' '+esc(t.label)+' • '+esc(j.customerName||"-")+' • 🐾 '+esc(petsShort(j))+'</span>'+
+       (j.assignee?'<span class="urgent-assignee">👤 '+esc(j.assignee)+'</span>':'')+
+       '<span class="urgent-travel">'+(d?fmtCE(j.travelDate):"")+'</span>'+
+       '</div>';
+  });
+  h+='</div></div>';
+  return h;
 }
 
 /* ============================ RENDER: FINANCE DASHBOARD ============================ */
@@ -867,6 +963,7 @@ function applyFilters(jobs,f){
     if(f.f_paid==="unpaid"&&j.paid)return false;
     if(f.f_stat==="closed"&&!isClosed(j))return false;
     if(f.f_stat==="open"&&isClosed(j))return false;
+    if(f.f_assignee&&!(j.assignee||"").toLowerCase().includes(f.f_assignee.toLowerCase()))return false;
     return true;
   });
 }
@@ -888,6 +985,7 @@ function renderJobTab(typeKey){
   h+=fldInput("ถึงวันที่","f_to","date",f.f_to);
   h+=fldSelect("สถานะเงิน","f_paid",[["","ทั้งหมด"],["paid","จ่ายแล้ว"],["unpaid","ค้างจ่าย"]],f.f_paid);
   h+=fldSelect("สถานะงาน","f_stat",[["","ทั้งหมด"],["open","กำลังทำ"],["closed","ปิดจ๊อบแล้ว"]],f.f_stat);
+  h+=fldInput("ผู้รับผิดชอบ","f_assignee","text",f.f_assignee,"พิมพ์ชื่อ...");
   h+='<button class="btn sm" data-act="clearfilter">ล้างตัวกรอง</button>';
   h+='<button class="btn sm primary" data-act="nav" data-view="new">+ เพิ่มงาน '+esc(t.label)+'</button>';
   h+='</div>';
@@ -920,7 +1018,8 @@ function renderJobTab(typeKey){
     h+='<tr>';
     h+='<td class="sticky-l"><div class="mini" style="color:var(--brand-d);font-weight:700">'+esc(j.jobNo||"-")+'</div>'+
        '<b>'+esc(j.customerName||"-")+'</b>'+
-       '<div class="mini">🐾 '+esc(petsShort(j))+' • '+esc(j.originCountry||"?")+"→"+esc(j.destCountry||"?")+'</div></td>';
+       '<div class="mini">🐾 '+esc(petsShort(j))+' • '+esc(j.originCountry||"?")+"→"+esc(j.destCountry||"?")+'</div>'+
+       (j.assignee?('<div class="mini" style="color:var(--brand-d);font-weight:600">👤 '+esc(j.assignee)+'</div>'):"")+'</td>';
     h+='<td>'+fmtCE(f.f_datefield==="record"?j.recordDate:j.travelDate)+'<div class="mini">'+(toBE(f.f_datefield==="record"?j.recordDate:j.travelDate)||"")+'</div></td>';
     h+='<td><button class="btn sm '+(j.paid?"":"")+'" data-act="paid" data-id="'+j.id+'">'+
        (j.paid?'<span class="badge bg-paid">จ่ายแล้ว</span>':'<span class="badge bg-unpaid">ค้างจ่าย</span>')+'</button></td>';
@@ -992,6 +1091,10 @@ function renderForm(){
     '<input type="date" id="f-record" value="'+esc(j.recordDate||(editing?"":todayStr()))+'" data-act="recin">'+
     '<div class="be" id="be-record"></div>'+
     '<div class="mini" style="margin-top:1px">คีย์งานย้อนหลังให้แก้วันที่นี้เป็นวันที่ทำงานจริง</div></div>';
+  h+='<datalist id="assigneeList">'+[...new Set(DB.jobs.map(jb=>jb.assignee).filter(x=>x))].map(a=>'<option value="'+esc(a)+'">').join("")+'</datalist>';
+  h+='<div class="f"><label>👤 ผู้รับผิดชอบงาน</label>'+
+    '<input type="text" id="f-assignee" list="assigneeList" value="'+esc(j.assignee||"")+'" placeholder="ชื่อคนที่ดูแลงานนี้">'+
+    '<div class="mini">เพื่อกระจายงานในทีม (รายการแสดงชื่อที่เคยใช้)</div></div>';
   h+='</div></div>';
 
   /* vaccine condition (job-level) */
@@ -1023,6 +1126,7 @@ function renderForm(){
   h+='</div>';
 
   h+='<div class="form-card"><h3>📎 เอกสารแนบ (Google Drive)</h3><div id="attachBox"></div></div>';
+  h+='<div class="form-card"><h3>📅 Google Calendar — เตือนงาน</h3><div id="calBox"></div></div>';
   h+=field("หมายเหตุเพิ่มเติม","f-notes","textarea",j.notes);
   h+='<div style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap">'+
     '<button class="btn primary" data-act="savejob">'+(editing?"💾 บันทึกการแก้ไข":"💾 บันทึกงาน")+'</button>'+
@@ -1035,6 +1139,7 @@ function renderForm(){
   paintCosts();
   refreshFinance();
   paintAttachments();
+  paintCalendar();
   if(driveReady()&&!(driveToken&&Date.now()<driveTokenExp-60000))refreshDriveTokenSilently();
   paintVaxConfig();
   renderPets();
@@ -1298,6 +1403,7 @@ function readFormJob(){
   job.vaccineDir=dir;
   job.travelDate=$("#f-travel").value;
   job.recordDate=($("#f-record")&&$("#f-record").value)||todayStr();
+  job.assignee=$("#f-assignee")?$("#f-assignee").value.trim():"";
   const payR=document.querySelector('input[name=paystat]:checked');
   job.paid=payR?payR.value==="pay":false;
   job.sellPrice=parseFloat($("#f-sell")?$("#f-sell").value:"")||0;
@@ -1388,7 +1494,7 @@ function renderSettings(){
     '<details style="margin-top:12px"><summary style="cursor:pointer;font-weight:600;font-size:13px">📋 วิธีตั้งค่า Google Cloud (ครั้งเดียว)</summary>'+
     '<ol style="margin:10px 0 0 20px;font-size:12.5px;line-height:1.9">'+
     '<li>ไปที่ <a href="https://console.cloud.google.com" target="_blank">console.cloud.google.com</a> → สร้าง Project ใหม่</li>'+
-    '<li>เมนู <b>APIs &amp; Services → Library</b> → ค้นหา <b>Google Drive API</b> → กด Enable</li>'+
+    '<li>เมนู <b>APIs &amp; Services → Library</b> → ค้นหา <b>Google Drive API</b> → กด Enable • และค้นหา <b>Google Calendar API</b> → กด Enable ด้วย (สำหรับฟีเจอร์เตือน)</li>'+
     '<li>เมนู <b>OAuth consent screen</b> → เลือก External → กรอกชื่อแอป + อีเมล → เพิ่ม <b>Test users</b> (อีเมลที่จะใช้งานทุกเครื่อง)</li>'+
     '<li>เมนู <b>Credentials → Create Credentials → OAuth client ID</b> → เลือกชนิด <b>Web application</b></li>'+
     '<li>ในช่อง <b>Authorized JavaScript origins</b> ใส่ <code>https://vpconvey.github.io</code></li>'+
@@ -1436,6 +1542,27 @@ document.addEventListener("click",e=>{
   else if(act==="driveconnect"){ensureDriveToken().then(()=>{paintAttachments();toast("เชื่อมต่อ Google Drive แล้ว — กดอัปโหลดได้เลย","ok");}).catch(e=>toast("เชื่อมต่อ Google ไม่สำเร็จ: "+(e&&e.message||e),"err"));}
   else if(act==="attachup"){const fi=$("#attachFile");if(fi)fi.click();}
   else if(act==="attachrm"){formAttachments.splice(+el.dataset.i,1);paintAttachments();}
+  else if(act==="calcreate"||act==="calupdate"){
+    const j=getJob(STATE.editId);if(!j){toast("ต้องบันทึกงานก่อน","err");return;}
+    if(!j.travelDate){toast("งานนี้ยังไม่มีวันเดินทาง","err");return;}
+    (async()=>{
+      try{
+        if(j.calendarEvent&&j.calendarEvent.id&&act==="calupdate"){try{await deleteCalendarEvent(j.calendarEvent.id);}catch(e){}}
+        toast("กำลังสร้าง event ใน Google Calendar...");
+        const ev=await createCalendarEvent(j);
+        j.calendarEvent={id:ev.id,link:ev.htmlLink||"",createdAt:new Date().toISOString()};
+        persistJob(j);paintCalendar();toast("ตั้งเตือนใน Calendar สำเร็จ ✓","ok");
+      }catch(e){toast("ไม่สำเร็จ: "+(e&&e.message||e),"err");}
+    })();
+  }
+  else if(act==="caldelete"){
+    const j=getJob(STATE.editId);if(!j||!j.calendarEvent||!j.calendarEvent.id)return;
+    if(!confirm("ลบ event ใน Google Calendar?"))return;
+    (async()=>{
+      try{await deleteCalendarEvent(j.calendarEvent.id);}catch(e){}
+      j.calendarEvent=null;persistJob(j);paintCalendar();toast("ลบ event แล้ว","ok");
+    })();
+  }
   else if(act==="wipe"){if(confirm("ยืนยันลบข้อมูลทั้งหมดในเครื่องนี้?")){DB.jobs=[];saveLocal();toast("ลบข้อมูลแล้ว");render();}}
 });
 document.addEventListener("input",e=>{
@@ -1651,6 +1778,7 @@ function buildReportHTML(j){
     row("สถานะงาน",isClosed(j)?'<span class="ok">ปิดจ๊อบแล้ว</span>':"กำลังดำเนินการ")+
     row("จำนวนสัตว์เลี้ยง",pets.length+" ตัว")+
     row("ชื่อลูกค้า",esc(j.customerName||"-"))+row("เบอร์โทรศัพท์",esc(j.customerPhone||"-"))+
+    row("ผู้รับผิดชอบ",esc(j.assignee||"-"))+
     row("ประเทศต้นทาง",esc(j.originCountry||"-"))+row("ประเทศปลายทาง",esc(j.destCountry||"-"))+
     row(travelLbl,dt(j.travelDate))+row("วันที่บันทึกงาน",dt(j.recordDate))+
     '</div></div>';

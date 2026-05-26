@@ -109,6 +109,15 @@ tbody tr:last-child td{border-bottom:none;}
 .t-mut{color:var(--mut);}
 .t-r{text-align:right;}
 .neg-amt{color:var(--red);font-weight:700;}
+.cat-row:hover{background:#fff7ed;}
+.cat-row.open{background:#fff7ed;}
+.cat-chev{display:inline-block;color:var(--brand-d);font-size:11px;transition:transform .15s;}
+.cat-row.open .cat-chev{transform:rotate(90deg);}
+.cat-detail td{background:#fafafa;}
+table.cat-sub{width:100%;border-collapse:collapse;}
+table.cat-sub th{background:#f1f5f9;color:#475569;font-weight:600;font-size:11px;padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);}
+table.cat-sub td{padding:7px 10px;font-size:12px;border-bottom:1px solid var(--line);background:#fff;}
+table.cat-sub tr:last-child td{border-bottom:none;}
 .sec-title{margin-top:22px;}
 
 /* Matrix table (job tabs) */
@@ -965,15 +974,40 @@ function renderFinanceDashboard(){
   if(!anyType)h+='<tr><td colspan="5" class="t-mut">ไม่มีข้อมูล</td></tr>';
   h+='</tbody></table></div>';
 
-  /* cost by category */
+  /* cost by category — with drill-down */
   const catMap={};
   list.forEach(j=>(j.costs||[]).forEach(c=>{const k=c.cat||"(ไม่ระบุหมวด)";
-    if(!catMap[k])catMap[k]={n:0,sum:0};catMap[k].n++;catMap[k].sum+=Number(c.amount)||0;}));
+    if(!catMap[k])catMap[k]={n:0,sum:0,items:[]};
+    catMap[k].n++;
+    const amt=Number(c.amount)||0;
+    catMap[k].sum+=amt;
+    catMap[k].items.push({jobId:j.id,jobNo:j.jobNo||"-",customerName:j.customerName||"-",travelDate:j.travelDate||"",recordDate:j.recordDate||"",amount:amt,note:c.note||"",jobType:j.jobType});
+  }));
   const cats=Object.keys(catMap).sort((a,b)=>catMap[b].sum-catMap[a].sum);
-  h+='<div class="sec-title">💸 สรุปต้นทุนตามหมวด</div>';
-  h+='<div class="tbl-wrap"><table><thead><tr><th>รายการต้นทุน</th><th>จำนวนครั้ง</th><th class="t-r">ยอดรวม</th></tr></thead><tbody>';
-  if(!cats.length)h+='<tr><td colspan="3" class="t-mut">ไม่มีข้อมูลต้นทุน</td></tr>';
-  cats.forEach(k=>{h+='<tr><td>'+esc(k)+'</td><td>'+catMap[k].n+'</td><td class="t-r">'+money(catMap[k].sum)+'</td></tr>';});
+  h+='<div class="sec-title">💸 สรุปต้นทุนตามหมวด <span class="mini" style="color:var(--mut);font-weight:400">— คลิกแถวเพื่อดูรายการงาน</span></div>';
+  h+='<div class="tbl-wrap"><table><thead><tr><th style="width:34px"></th><th>รายการต้นทุน</th><th>จำนวนครั้ง</th><th class="t-r">ยอดรวม</th></tr></thead><tbody>';
+  if(!cats.length)h+='<tr><td colspan="4" class="t-mut">ไม่มีข้อมูลต้นทุน</td></tr>';
+  cats.forEach((k,idx)=>{
+    const safe=esc(k);const detId="catd-"+idx;
+    h+='<tr class="cat-row" data-act="togglecat" data-det="'+detId+'" style="cursor:pointer">'+
+       '<td><span class="cat-chev" id="chev-'+idx+'">▶</span></td>'+
+       '<td>'+safe+'</td><td>'+catMap[k].n+'</td><td class="t-r">'+money(catMap[k].sum)+'</td></tr>';
+    /* detail row — hidden by default */
+    let dh='<tr class="cat-detail" id="'+detId+'" style="display:none"><td></td><td colspan="3" style="padding:0">'+
+           '<table class="cat-sub"><thead><tr><th>เลขที่งาน</th><th>ลูกค้า</th><th>ประเภท</th><th>วันเดินทาง</th><th class="t-r">จำนวน</th><th>รายละเอียด</th><th></th></tr></thead><tbody>';
+    catMap[k].items.slice().sort((a,b)=>b.amount-a.amount).forEach(it=>{
+      const t=JOB_TYPES[it.jobType]||{icon:"",label:it.jobType||"-"};
+      dh+='<tr><td><b style="color:var(--brand-d)">'+esc(it.jobNo)+'</b></td>'+
+          '<td>'+esc(it.customerName)+'</td>'+
+          '<td><span class="badge bg-type" style="font-size:10px">'+t.icon+" "+esc(t.label)+'</span></td>'+
+          '<td>'+fmtCE(it.travelDate||it.recordDate)+'</td>'+
+          '<td class="t-r">'+money(it.amount)+'</td>'+
+          '<td class="mini">'+(it.note?esc(it.note):'<span style="color:var(--mut)">—</span>')+'</td>'+
+          '<td><button class="btn sm" data-act="edit" data-id="'+esc(it.jobId)+'" title="เปิดงาน">เปิด</button></td></tr>';
+    });
+    dh+='</tbody></table></td></tr>';
+    h+=dh;
+  });
   h+='</tbody></table></div>';
 
   /* detail */
@@ -1783,6 +1817,13 @@ document.addEventListener("click",e=>{
     else{const inp=$("#f-p"+idx+"-breedin");paintBreedPanel(idx,inp?inp.value:"");openBreedPanel(idx);if(inp)inp.focus();}
   }
   else if(act==="breedpick"){pickBreed(+el.dataset.pet,el.dataset.val||"",{mixed:el.dataset.mixed==="1",custom:el.dataset.custom==="1"});}
+  else if(act==="togglecat"){
+    const det=document.getElementById(el.dataset.det);
+    if(!det)return;
+    const open=det.style.display==="table-row"||det.style.display==="";
+    if(open){det.style.display="none";el.classList.remove("open");}
+    else{det.style.display="table-row";el.classList.add("open");}
+  }
   else if(act==="custfill"){
     const src=getJob(el.dataset.id);if(!src)return;
     fillFromCustomer(src);

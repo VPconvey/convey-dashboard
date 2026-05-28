@@ -118,6 +118,9 @@ table.cat-sub{width:100%;border-collapse:collapse;}
 table.cat-sub th{background:#f1f5f9;color:#475569;font-weight:600;font-size:11px;padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);}
 table.cat-sub td{padding:7px 10px;font-size:12px;border-bottom:1px solid var(--line);background:#fff;}
 table.cat-sub tr:last-child td{border-bottom:none;}
+.costcat-row{display:flex;gap:8px;align-items:center;margin-bottom:6px;padding:6px 8px;background:#fafafa;border:1px solid #f1f5f9;border-radius:8px;}
+.costcat-row input[type=text]{flex:1;padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:#fff;}
+.costcat-row .btn.sm[disabled]{opacity:.35;cursor:not-allowed;}
 .sec-title{margin-top:22px;}
 
 /* Matrix table (job tabs) */
@@ -308,11 +311,32 @@ const OTHER_BREED="อื่นๆ — พิมพ์เอง";
 const OTHER_COUNTRY="อื่นๆ — ระบุประเทศเอง";
 const DOG_BREEDS=["Poodle (พุดเดิ้ล)","Toy Poodle (ทอย พุดเดิ้ล)","Pomeranian (ปอมเมอเรเนียน)","Shih Tzu (ชิห์สุ)","Golden Retriever (โกลเด้น รีทรีฟเวอร์)","Labrador Retriever (ลาบราดอร์ รีทรีฟเวอร์)","Chihuahua (ชิวาวา)","French Bulldog (เฟรนช์ บูลด็อก)","English Bulldog (อิงลิช บูลด็อก)","American Bulldog (อเมริกัน บูลด็อก)","Bull Terrier (บูล เทอร์เรีย)","Boston Terrier (บอสตัน เทอร์เรีย)","Beagle (บีเกิ้ล)","Siberian Husky (ไซบีเรียน ฮัสกี้)","Alaskan Malamute (อลาสกัน มาลามิวท์)","German Shepherd (เยอรมัน เชพเพิร์ด)","Pug (ปั๊ก)","Pembroke Welsh Corgi (คอร์กี้)","Cardigan Welsh Corgi (คาร์ดิแกน คอร์กี้)","Dachshund (ดัชชุน)","Maltese (มอลทีส)","Yorkshire Terrier (ยอร์กเชียร์ เทอร์เรีย)","Jack Russell Terrier (แจ็ค รัสเซลล์ เทอร์เรีย)","Border Collie (บอร์เดอร์ คอลลี่)","Rottweiler (ร็อตไวเลอร์)","Miniature Schnauzer (มินิเอเจอร์ ชเนาเซอร์)","Standard Schnauzer (สแตนดาร์ด ชเนาเซอร์)","Giant Schnauzer (ไจแอนต์ ชเนาเซอร์)","Thai Bangkaew (ไทยบางแก้ว)","Thai Ridgeback (ไทยหลังอาน)","Chow Chow (เชาเชา)","Cocker Spaniel (ค็อกเกอร์ สแปเนียล)","Cavalier King Charles Spaniel (คาวาเลียร์ คิง ชาร์ลส)","Samoyed (ซามอยด์)","Shiba Inu (ชิบะ อินุ)","Akita (อาคิตะ)","Bichon Frise (บิชอง ฟริเซ่)","Doberman (โดเบอร์แมน)","Great Dane (เกรท เดน)","Australian Shepherd (ออสเตรเลียน เชพเพิร์ด)","Bernese Mountain Dog (เบอร์นีส เมาน์เทน ด็อก)","Saint Bernard (เซนต์ เบอร์นาร์ด)","Newfoundland (นิวฟาวด์แลนด์)","Pekingese (ปักกิ่ง)","Lhasa Apso (ลาซา แอปโซ)","Havanese (ฮาวานีส)","Papillon (ปาปิยอง)","Boxer (บ็อกเซอร์)","Greyhound (เกรย์ฮาวด์)","Whippet (วิปเป็ต)","Italian Greyhound (อิตาเลียน เกรย์ฮาวด์)","Dalmatian (ดัลเมเชียน)","Weimaraner (ไวมาราเนอร์)","Pit Bull (พิทบูล)","American Staffordshire Terrier (อเมริกัน สแตฟฟอร์ดเชียร์)","Cane Corso (เคน คอร์โซ)","Mastiff (มาสทิฟ)","Bullmastiff (บูลมาสทิฟ)","Tibetan Mastiff (ทิเบตัน มาสทิฟ)","Shar Pei (ชาร์ เป่ย)","Basset Hound (บาสเซ็ต ฮาวด์)","Saluki (ซาลูกิ)","Australian Cattle Dog (ออสเตรเลียน แคทเทิล ด็อก)","Vizsla (วิซลา)","Brittany (บริทตานี)","Belgian Malinois (เบลเจียน มาลินอยส์)","Schnoodle (ชนูดเดิล)","Maltipoo (มอลทิพู)","Goldendoodle (โกลเด้นดูดเดิ้ล)","Labradoodle (ลาบราดูดเดิ้ล)"];
 const CAT_BREEDS=["Persian (เปอร์เซีย)","Himalayan (หิมาลายัน)","Scottish Fold (สก็อตทิช โฟลด์)","Scottish Straight (สก็อตทิช สเตรท)","British Shorthair (บริติช ชอร์ตแฮร์)","British Longhair (บริติช ลองแฮร์)","American Shorthair (อเมริกัน ชอร์ตแฮร์)","American Curl (อเมริกัน เคิร์ล)","Maine Coon (เมนคูน)","Siamese (วิเชียรมาศ)","Ragdoll (แร็กดอลล์)","Ragamuffin (แร็กกามัฟฟิน)","Munchkin (มันช์กิน)","Bengal (เบงกอล)","Sphynx (สฟิงซ์)","Exotic Shorthair (เอ็กโซติก ชอร์ตแฮร์)","Russian Blue (รัสเซียน บลู)","Norwegian Forest (นอร์วีเจียน ฟอเรสต์)","Khao Manee (ขาวมณี)","Korat (โคราช/สีสวาด)","Suphalak (ศุภลักษณ์)","Abyssinian (อะบิสซิเนียน)","Somali (โซมาลี)","Devon Rex (เดวอน เร็กซ์)","Cornish Rex (คอร์นิช เร็กซ์)","Selkirk Rex (เซลเคิร์ก เร็กซ์)","Burmese (เบอร์มีส)","Tonkinese (ทองคินีส)","Birman (เบอร์แมน)","Turkish Angora (ตุรกี อังโกรา)","Turkish Van (ตุรกี แวน)","Savannah (สะวันนา)","Oriental Shorthair (โอเรียนทอล ชอร์ตแฮร์)","Manx (แมงซ์)","Bombay (บอมเบย์)","Chartreux (ชาร์เทรอ)","LaPerm (ลาเพิร์ม)","Domestic Shorthair (ขนสั้นทั่วไป)","Domestic Longhair (ขนยาวทั่วไป)"];
-const COST_CATS=["ค่าใบอนุญาตนำเข้า","ค่าใบอนุญาตส่งออก","ค่าบริการ คุณเอ๋","Transair","ค่าน้ำมัน","ค่าคอมมิสชั่นปุ๋ย","ค่าคอมมิสชั่นดรีม","ค่าขนส่งโน๊ต","ค่าขนส่งแจ๊ค","ค่าแมสเซนเจอร์ส่งเอกสาร","ค่าโรงแรมฝากเลี้ยง","ค่าผลแลป","ค่าส่งเอกสาร","ค่าใช้จ่ายหมอพิม","ค่า Health Certificate","ค่ากรงเดินทาง (Travel Crate)","ค่ากรงไม้/IATA Crate","ค่าวัคซีน/ยา","ค่าตรวจไมโครชิพ","ค่าทำหมัน/ยาสลบ","ค่าตรวจ Rabies Titer","ค่า Cargo สายการบิน","ค่า Handling สนามบิน","ค่า X-ray/CT/Lab","ค่าคอมมิชชั่น Agent","ค่าที่ปรึกษากฎหมายปลายทาง","ค่าใช้จ่ายอื่นๆ"];
+const DEFAULT_COST_CATS=["ค่าใบอนุญาตนำเข้า","ค่าใบอนุญาตส่งออก","ค่าบริการ คุณเอ๋","Transair","ค่าน้ำมัน","ค่าคอมมิสชั่นปุ๋ย","ค่าคอมมิสชั่นดรีม","ค่าขนส่งโน๊ต","ค่าขนส่งแจ๊ค","ค่าแมสเซนเจอร์ส่งเอกสาร","ค่าโรงแรมฝากเลี้ยง","ค่าผลแลป","ค่าส่งเอกสาร","ค่าใช้จ่ายหมอพิม","ค่า Health Certificate","ค่ากรงเดินทาง (Travel Crate)","ค่ากรงไม้/IATA Crate","ค่าวัคซีน/ยา","ค่าตรวจไมโครชิพ","ค่าทำหมัน/ยาสลบ","ค่าตรวจ Rabies Titer","ค่า Cargo สายการบิน","ค่า Handling สนามบิน","ค่า X-ray/CT/Lab","ค่าคอมมิชชั่น Agent","ค่าที่ปรึกษากฎหมายปลายทาง","ค่าใช้จ่ายอื่นๆ"];
+function getCostCats(){return (Array.isArray(DB.costCats)&&DB.costCats.length)?DB.costCats:DEFAULT_COST_CATS;}
 const LS_KEY="conveyDashboard_v1";
 
 /* ============================ STATE ============================ */
-let DB={jobs:[],cloud:{url:"",key:"",enabled:false},drive:{clientId:"",folderId:"",enabled:false},team:[]};
+const DEFAULT_COMPANY={
+  name:"Convey Pet Relocation Services",
+  tagline:"ขนส่งสัตว์เลี้ยงระหว่างประเทศ",
+  legalName:"บริษัท คอนเวย์ คาร์โกลอจิสติค จำกัด",
+  legalNameEn:"Convey Cargo Logistics Company Limited",
+  taxId:"0125564019775",
+  branch:"Head Office",
+  address:"เลขที่ 296/100 ซอยร่มเกล้า 6/1 แขวงมีนบุรี เขตมีนบุรี กรุงเทพมหานคร 10510",
+  addressEn:"296/100 Soi Romklao 6/1, Minburi Bangkok 10510",
+  phone:"+66984970155",
+  email:"Pet@ccl.co.th",
+  website:"www.conveypetrelocation.com",
+  bankInfo:"",
+  authorizedSigner:"Veerachai Pattarapateep",
+  vatMode:"none",
+  vatRate:7,
+  logo:""
+};
+const CURRENCIES=["THB","USD","EUR","GBP","SGD","JPY","CNY","HKD","AUD","MYR"];
+const PAYMENT_METHODS=["โอนเงิน / Bank Transfer","เงินสด / Cash","เช็ค / Cheque","บัตรเครดิต / Credit Card","PayPal","Wise / TransferWise","Other"];
+let DB={jobs:[],cloud:{url:"",key:"",enabled:false},drive:{clientId:"",folderId:"",enabled:false},team:[],costCats:DEFAULT_COST_CATS.slice(),company:Object.assign({},DEFAULT_COMPANY),invSeq:{},rcpSeq:{}};
 let STATE={view:"dashboard",editId:null,dupFrom:null,filters:{}};
 let formPets=[];
 let formCond="china";
@@ -362,7 +386,11 @@ function loadLocal(){
     DB.jobs=Array.isArray(d.jobs)?d.jobs:[];
     DB.cloud=Object.assign({url:"",key:"",enabled:false},d.cloud||{});
     DB.drive=Object.assign({clientId:"",folderId:"",enabled:false},d.drive||{});
-    DB.team=Array.isArray(d.team)?d.team:[];}}
+    DB.team=Array.isArray(d.team)?d.team:[];
+    DB.costCats=(Array.isArray(d.costCats)&&d.costCats.length)?d.costCats:DEFAULT_COST_CATS.slice();
+    DB.company=Object.assign({},DEFAULT_COMPANY,d.company||{});
+    DB.invSeq=(d.invSeq&&typeof d.invSeq==="object")?d.invSeq:{};
+    DB.rcpSeq=(d.rcpSeq&&typeof d.rcpSeq==="object")?d.rcpSeq:{};}}
   catch(e){console.warn("load error",e);}
   DB.jobs.forEach(migrateJobPets);
 }
@@ -1163,6 +1191,12 @@ function renderForm(){
      '<input type="text" id="f-cname" list="customerList" value="'+esc(j.customerName||"")+'" data-act="custname" autocomplete="off">'+
      '<div class="mini">เริ่มพิมพ์ — รายชื่อลูกค้าเก่าจะขึ้นมาให้เลือก</div></div>';
   h+=field("เบอร์โทรศัพท์","f-cphone","tel",j.customerPhone);
+  h+='<div class="f wide"><label>ที่อยู่ลูกค้า (สำหรับ Invoice)</label>'+
+     '<textarea id="f-caddr" rows="2" placeholder="เลขที่ ... ถนน ... แขวง ... จังหวัด ... รหัสไปรษณีย์ (จะใส่หรือไม่ใส่ก็ได้)">'+esc(j.customerAddress||"")+'</textarea></div>';
+  h+='<div class="f"><label>เลขผู้เสียภาษีลูกค้า (ถ้าเป็นนิติบุคคล)</label>'+
+     '<input type="text" id="f-ctax" value="'+esc(j.customerTaxId||"")+'" maxlength="13" placeholder="ปล่อยว่างถ้าเป็นบุคคลธรรมดา"></div>';
+  h+='<div class="f"><label>สาขา (ถ้าลูกค้าเป็นนิติบุคคล)</label>'+
+     '<input type="text" id="f-cbranch" value="'+esc(j.customerBranch||"")+'" placeholder="สำนักงานใหญ่ / สาขาที่ ..."></div>';
   h+='<div class="f" id="originBox"></div>';
   h+='<div class="f" id="destBox"></div>';
   h+='<div class="f"><label>ประเภทงาน <span class="req">*</span></label><select id="f-jtype" data-act="jtype">'+
@@ -1213,12 +1247,40 @@ function renderForm(){
     '<div class="be" id="be-paiddate"></div></div>';
   h+='</div>';
 
+  /* Invoice/Receipt config */
+  const invDesc=j.invoiceDescription!=null?j.invoiceDescription:autoInvoiceDescription(j);
+  h+='<div class="form-card"><h3>🧾 Invoice / Receipt</h3>'+
+    '<p class="mini" style="margin-bottom:10px">ตั้งค่ารายการบริการที่จะแสดงในใบแจ้งหนี้ / ใบเสร็จ • หลังบันทึก กดปุ่ม "🧾 Invoice" / "✅ Receipt" ด้านล่างเพื่อออกเอกสาร</p>'+
+    '<div class="form-grid">'+
+    '<div class="f"><label>สกุลเงิน</label><select id="f-currency" data-act="invin" data-f="invoiceCurrency">'+
+      CURRENCIES.map(c=>'<option value="'+c+'"'+((j.invoiceCurrency||"THB")===c?" selected":"")+'>'+c+'</option>').join("")+
+      '</select></div>'+
+    '<div class="f"><label>จำนวน (Qty)</label><input type="number" id="f-qty" min="1" step="1" value="'+esc(j.invoiceQty||1)+'" data-act="invin" data-f="invoiceQty"></div>'+
+    '<div class="f wide"><label>หัวข้อบริการ (Title — แสดงเป็นตัวหนา)</label>'+
+       '<input type="text" id="f-invtitle" value="'+esc(j.invoiceTitle||"")+'" data-act="invin" data-f="invoiceTitle" placeholder="เช่น Door to Door Service / Pick up / Pet Relocation Service"></div>'+
+    '<div class="f wide"><label>รายละเอียดบริการ (แสดงใต้หัวข้อ)</label>'+
+       '<textarea id="f-invdesc" rows="4" data-act="invin" data-f="invoiceDescription" placeholder="พิมพ์อิสระ — แต่ละบรรทัดจะขึ้นบรรทัดใหม่ในเอกสาร">'+esc(invDesc)+'</textarea>'+
+       '<div class="mini">หากปล่อยว่าง ระบบจะ auto-generate จากเส้นทาง + ชื่อสัตว์เลี้ยง</div></div>'+
+    '<div class="f wide"><label>Reference (Ref.) — สั้นๆ มุมขวา</label>'+
+       '<input type="text" id="f-invref" value="'+esc(j.invoiceReference||"")+'" data-act="invin" data-f="invoiceReference" placeholder="เช่น Relocation 1 Cat from TH - MY"></div>'+
+    '<div class="f"><label>วิธีชำระเงิน (Receipt)</label><select id="f-paymeth" data-act="invin" data-f="invoicePaymentMethod">'+
+      PAYMENT_METHODS.map(p=>'<option value="'+esc(p)+'"'+((j.invoicePaymentMethod||"โอนเงิน / Bank Transfer")===p?" selected":"")+'>'+esc(p)+'</option>').join("")+
+      '</select></div>'+
+    '<div class="f"><label>สถานะเอกสาร</label><div class="mini" style="padding:8px 0">'+
+      (j.invoice&&j.invoice.no?('<span class="badge" style="background:#dbeafe;color:#1d4ed8">🧾 Invoice: '+esc(j.invoice.no)+'</span> '):'')+
+      (j.receipt&&j.receipt.no?('<span class="badge" style="background:#dcfce7;color:#15803d">✅ Receipt: '+esc(j.receipt.no)+'</span>'):'')+
+      (!(j.invoice&&j.invoice.no)&&!(j.receipt&&j.receipt.no)?'<span style="color:var(--mut)">ยังไม่ได้ออกเอกสาร</span>':'')+
+      '</div></div>'+
+    '</div></div>';
+
   h+='<div class="form-card"><h3>📎 เอกสารแนบ (Google Drive)</h3><div id="attachBox"></div></div>';
   h+='<div class="form-card"><h3>📅 Google Calendar — เตือนงาน</h3><div id="calBox"></div></div>';
   h+=field("หมายเหตุเพิ่มเติม","f-notes","textarea",j.notes);
   h+='<div style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap">'+
     '<button class="btn primary" data-act="savejob">'+(editing?"💾 บันทึกการแก้ไข":"💾 บันทึกงาน")+'</button>'+
-    (editing?'<button class="btn" data-act="pdf" data-id="'+esc(STATE.editId)+'">🖨 สร้างรายงาน PDF</button>':'')+
+    (editing?'<button class="btn" data-act="pdf" data-id="'+esc(STATE.editId)+'">🖨 รายงาน PDF</button>':'')+
+    (editing?'<button class="btn" data-act="invoice" data-id="'+esc(STATE.editId)+'" style="background:#fff7ed;border-color:#fed7aa;color:#9a3412">🧾 Invoice'+((j.invoice&&j.invoice.no)?(' ('+esc(j.invoice.no)+')'):'')+'</button>':'')+
+    (editing?'<button class="btn" data-act="receipt" data-id="'+esc(STATE.editId)+'" style="background:'+(j.paid?'#dcfce7':'#f1f5f9')+';border-color:'+(j.paid?'#86efac':'var(--line)')+';color:'+(j.paid?'#15803d':'#94a3b8')+'" '+(j.paid?'':'disabled title="ออกใบเสร็จได้เมื่อ mark Paid แล้ว"')+'>✅ Receipt'+((j.receipt&&j.receipt.no)?(' ('+esc(j.receipt.no)+')'):'')+'</button>':'')+
     '<button class="btn" data-act="nav" data-view="dashboard">ยกเลิก</button></div>';
 
   $("#content").innerHTML=h;
@@ -1243,7 +1305,7 @@ function paintCosts(){
     h+='<div class="cost-row">'+
       '<select data-act="costin" data-i="'+i+'" data-f="cat">'+
         '<option value="">— เลือกรายการต้นทุน —</option>'+
-        COST_CATS.map(o=>'<option value="'+esc(o)+'"'+(c.cat===o?" selected":"")+'>'+esc(o)+'</option>').join("")+
+        getCostCats().map(o=>'<option value="'+esc(o)+'"'+(c.cat===o?" selected":"")+'>'+esc(o)+'</option>').join("")+
       '</select>'+
       '<input type="number" min="0" step="1" placeholder="จำนวนเงิน (บาท)" value="'+esc(c.amount)+'" data-act="costin" data-i="'+i+'" data-f="amount">'+
       '<button class="cost-rm" data-act="rmcost" data-i="'+i+'" title="ลบรายการ">✕</button>'+
@@ -1531,6 +1593,9 @@ function checkRepeatCustomer(name,fromChange){
 function fillFromCustomer(src){
   if(!src)return;
   if($("#f-cphone")&&!$("#f-cphone").value)$("#f-cphone").value=src.customerPhone||"";
+  if($("#f-caddr")&&!$("#f-caddr").value)$("#f-caddr").value=src.customerAddress||"";
+  if($("#f-ctax")&&!$("#f-ctax").value)$("#f-ctax").value=src.customerTaxId||"";
+  if($("#f-cbranch")&&!$("#f-cbranch").value)$("#f-cbranch").value=src.customerBranch||"";
   ["origin","dest"].forEach(w=>{
     const v=(w==="origin"?src.originCountry:src.destCountry)||"";
     formCountry[w]=!v?{sel:"",extra:""}:(COUNTRIES.indexOf(v)>=0?{sel:v,extra:""}:{sel:OTHER_COUNTRY,extra:v});
@@ -1617,6 +1682,15 @@ function readFormJob(){
   const prevType=job.jobType;
   job.customerName=$("#f-cname").value.trim();
   job.customerPhone=$("#f-cphone").value.trim();
+  job.customerAddress=$("#f-caddr")?$("#f-caddr").value.trim():"";
+  job.customerTaxId=$("#f-ctax")?$("#f-ctax").value.trim():"";
+  job.customerBranch=$("#f-cbranch")?$("#f-cbranch").value.trim():"";
+  if($("#f-currency"))job.invoiceCurrency=$("#f-currency").value||"THB";
+  if($("#f-qty"))job.invoiceQty=Math.max(1,parseInt($("#f-qty").value,10)||1);
+  if($("#f-invtitle"))job.invoiceTitle=$("#f-invtitle").value.trim();
+  if($("#f-invdesc"))job.invoiceDescription=$("#f-invdesc").value;
+  if($("#f-invref"))job.invoiceReference=$("#f-invref").value.trim();
+  if($("#f-paymeth"))job.invoicePaymentMethod=$("#f-paymeth").value;
   syncCountryFromDOM("origin");syncCountryFromDOM("dest");
   job.originCountry=resolveCountry("origin");
   job.destCountry=resolveCountry("dest");
@@ -1738,11 +1812,70 @@ function renderSettings(){
     '<button class="btn sm" data-act="addteam" style="margin-top:8px">+ เพิ่มสมาชิก</button>'+
     '<div class="mini" style="margin-top:6px">หมายเหตุ: รายชื่อนี้เก็บในเครื่องนี้ — ใช้ Export/Import JSON เพื่อย้ายไปเครื่องอื่น</div></div>';
 
+  /* Company info for Invoice/Receipt */
+  const co=Object.assign({},DEFAULT_COMPANY,DB.company||{});
+  h+='<div class="form-card"><h3>🏢 ข้อมูลบริษัท (สำหรับ Invoice / Receipt)</h3>'+
+    '<p class="mini" style="margin-bottom:10px">ข้อมูลที่ preset คือของบริษัทคุณอยู่แล้ว — แก้/เพิ่มเติมได้ • บันทึกอัตโนมัติ</p>'+
+    '<div class="form-grid">'+
+    '<div class="f"><label>Brand Name (แสดงใต้โลโก้)</label><input type="text" value="'+esc(co.name)+'" data-act="coin" data-f="name"></div>'+
+    '<div class="f"><label>Tagline</label><input type="text" value="'+esc(co.tagline||"")+'" data-act="coin" data-f="tagline" placeholder="ขนส่งสัตว์เลี้ยงระหว่างประเทศ"></div>'+
+    '<div class="f"><label>ชื่อนิติบุคคล (ไทย)</label><input type="text" value="'+esc(co.legalName)+'" data-act="coin" data-f="legalName"></div>'+
+    '<div class="f"><label>ชื่อนิติบุคคล (Eng)</label><input type="text" value="'+esc(co.legalNameEn||"")+'" data-act="coin" data-f="legalNameEn"></div>'+
+    '<div class="f"><label>เลขผู้เสียภาษี (13 หลัก)</label><input type="text" value="'+esc(co.taxId)+'" data-act="coin" data-f="taxId" maxlength="13"></div>'+
+    '<div class="f"><label>สาขา</label><input type="text" value="'+esc(co.branch)+'" data-act="coin" data-f="branch"></div>'+
+    '<div class="f wide"><label>ที่อยู่ (ไทย)</label><textarea rows="2" data-act="coin" data-f="address">'+esc(co.address)+'</textarea></div>'+
+    '<div class="f wide"><label>ที่อยู่ (Eng)</label><textarea rows="2" data-act="coin" data-f="addressEn">'+esc(co.addressEn||"")+'</textarea></div>'+
+    '<div class="f"><label>เบอร์โทรศัพท์</label><input type="text" value="'+esc(co.phone)+'" data-act="coin" data-f="phone"></div>'+
+    '<div class="f"><label>อีเมล</label><input type="email" value="'+esc(co.email)+'" data-act="coin" data-f="email"></div>'+
+    '<div class="f"><label>เว็บไซต์</label><input type="text" value="'+esc(co.website)+'" data-act="coin" data-f="website"></div>'+
+    '<div class="f"><label>ชื่อผู้มีอำนาจลงนาม</label><input type="text" value="'+esc(co.authorizedSigner||"")+'" data-act="coin" data-f="authorizedSigner" placeholder="แสดงใต้ลายเซ็นในเอกสาร"></div>'+
+    '<div class="f"><label>VAT Mode</label><select data-act="coin" data-f="vatMode">'+
+      '<option value="none"'+(co.vatMode==="none"?" selected":"")+'>None — ไม่แสดง VAT (มาตรฐานปัจจุบัน • Commercial Invoice)</option>'+
+      '<option value="exclusive"'+(co.vatMode==="exclusive"?" selected":"")+'>Exclusive — เพิ่ม VAT บนยอด (ใบกำกับภาษี)</option>'+
+      '<option value="inclusive"'+(co.vatMode==="inclusive"?" selected":"")+'>Inclusive — ราคารวม VAT แล้ว (แยกใน Tax Invoice)</option>'+
+      '</select></div>'+
+    '<div class="f"><label>อัตรา VAT (%)</label><input type="number" value="'+esc(co.vatRate)+'" data-act="coin" data-f="vatRate" min="0" max="30" step="0.01"></div>'+
+    '<div class="f wide"><label>ข้อมูลบัญชีรับเงิน (optional)</label><textarea rows="2" data-act="coin" data-f="bankInfo" placeholder="ธนาคาร — ชื่อบัญชี — เลขที่บัญชี">'+esc(co.bankInfo||"")+'</textarea></div>'+
+    '<div class="f wide"><label>โลโก้ (URL หรือ data URI)</label><input type="text" value="'+esc(co.logo||"")+'" data-act="coin" data-f="logo" placeholder="ไม่ใส่ก็ได้ — ระบบจะแสดงตัวอักษร CONVEY แทน"></div>'+
+    '</div>'+
+    '</div>';
+
+  h+='<div class="form-card"><h3>💸 จัดการหมวดต้นทุน <span class="pill on">'+getCostCats().length+' หมวด</span></h3>'+
+    '<p class="mini" style="margin-bottom:10px">เพิ่ม/ลบ/แก้ชื่อหมวดต้นทุน — รายการนี้จะใช้ใน dropdown ตอนกรอกค่าใช้จ่าย และ aggregate ในหน้าสรุป • รายการ sync ขึ้น Cloud ทำให้ทีมเห็นเหมือนกันทุกเครื่อง</p>'+
+    '<div class="hint" style="margin-bottom:10px">⚠️ ถ้าลบหมวดที่งานเก่ายังใช้อยู่ ข้อมูลในงานเก่าจะยังคงอยู่ (อยู่ในกลุ่ม "(ไม่ระบุหมวด)" ในสรุป) — ไม่กระทบงาน</div>'+
+    '<div id="costCatBox"></div>'+
+    '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">'+
+    '<input type="text" id="newCostCat" placeholder="ชื่อหมวดต้นทุนใหม่ เช่น ค่ารถส่งสนามบิน" style="flex:1;min-width:220px;padding:8px 11px;border:1px solid var(--line);border-radius:8px">'+
+    '<button class="btn primary" data-act="addcat">+ เพิ่มหมวด</button>'+
+    '<button class="btn" data-act="resetcats" title="คืนค่ารายการเริ่มต้น 27 หมวด">↺ Reset เป็น default</button>'+
+    '</div></div>';
+
   h+='<div class="form-card"><h3>⚠️ ล้างข้อมูล</h3>'+
     '<div class="set-row"><button class="btn danger" data-act="wipe">ลบข้อมูลทั้งหมดในเครื่องนี้</button>'+
     '<span class="mini">แนะนำ Export สำรองก่อนทุกครั้ง</span></div></div>';
   $("#content").innerHTML=h;
   paintTeam();
+  paintCostCats();
+}
+function paintCostCats(){
+  const box=$("#costCatBox");if(!box)return;
+  const cats=getCostCats();
+  /* count usage per category from existing jobs */
+  const usage={};
+  DB.jobs.forEach(j=>(j.costs||[]).forEach(c=>{if(c.cat){usage[c.cat]=(usage[c.cat]||0)+1;}}));
+  let h='';
+  if(!cats.length){h='<div class="mini">ยังไม่มีหมวด — กด "Reset เป็น default" เพื่อเริ่มต้น</div>';}
+  cats.forEach((c,i)=>{
+    const used=usage[c]||0;
+    h+='<div class="costcat-row" data-i="'+i+'">'+
+       '<input type="text" value="'+esc(c)+'" data-act="catin" data-i="'+i+'">'+
+       '<span class="mini" style="white-space:nowrap;min-width:75px;text-align:right">'+(used?('ใช้ใน '+used+' รายการ'):'<span style="color:var(--mut)">ยังไม่ถูกใช้</span>')+'</span>'+
+       '<button class="btn sm" data-act="catup" data-i="'+i+'" '+(i===0?'disabled':'')+' title="เลื่อนขึ้น">▲</button>'+
+       '<button class="btn sm" data-act="catdown" data-i="'+i+'" '+(i===cats.length-1?'disabled':'')+' title="เลื่อนลง">▼</button>'+
+       '<button class="cost-rm" data-act="catrm" data-i="'+i+'" title="ลบหมวด">✕</button>'+
+       '</div>';
+  });
+  box.innerHTML=h;
 }
 
 /* ============================ EVENT HANDLING ============================ */
@@ -1758,6 +1891,8 @@ document.addEventListener("click",e=>{
   else if(act==="dup"){STATE.editId=null;STATE.dupFrom=el.dataset.id;STATE.view="new";STATE.filters={};render();window.scrollTo(0,0);}
   else if(act==="open"){const j=getJob(el.dataset.id);if(j){STATE.view="job:"+j.jobType;STATE.filters={};render();window.scrollTo(0,0);}}
   else if(act==="pdf"){generatePDF(el.dataset.id);}
+  else if(act==="invoice"){generateInvoice(el.dataset.id);}
+  else if(act==="receipt"){generateReceipt(el.dataset.id);}
   else if(act==="del"){const j=getJob(el.dataset.id);
     if(j&&confirm("ลบงานของ \""+(j.customerName||"-")+"\" ?")){deleteJob(el.dataset.id);toast("ลบงานแล้ว");render();}}
   else if(act==="addvax"){syncPetsFromDOM();formPets[+el.dataset.pet].vax[el.dataset.grp].push({date:"",expiry:""});renderPets();}
@@ -1779,6 +1914,46 @@ document.addEventListener("click",e=>{
   else if(act==="drive-off"){DB.drive.enabled=false;saveLocal();toast("ตัดการเชื่อมต่อ Google Drive แล้ว");render();}
   else if(act==="addteam"){if(!Array.isArray(DB.team))DB.team=[];DB.team.push({name:"",email:""});saveLocal();paintTeam();}
   else if(act==="teamrm"){DB.team.splice(+el.dataset.i,1);saveLocal();paintTeam();}
+  else if(act==="addcat"){
+    const inp=$("#newCostCat");if(!inp)return;
+    const v=(inp.value||"").trim();
+    if(!v){toast("กรุณาพิมพ์ชื่อหมวด","err");return;}
+    if(!Array.isArray(DB.costCats)||!DB.costCats.length)DB.costCats=DEFAULT_COST_CATS.slice();
+    if(DB.costCats.indexOf(v)>=0){toast("มีหมวดนี้อยู่แล้ว","err");return;}
+    DB.costCats.push(v);saveLocal();inp.value="";paintCostCats();
+    /* update header pill count */
+    const head=document.querySelector(".form-card h3 .pill.on");if(head)head.textContent=DB.costCats.length+" หมวด";
+    toast("เพิ่มหมวด \""+v+"\" แล้ว","ok");
+  }
+  else if(act==="catrm"){
+    if(!Array.isArray(DB.costCats))return;
+    const i=+el.dataset.i;const name=DB.costCats[i];if(name==null)return;
+    /* check usage */
+    let used=0;DB.jobs.forEach(j=>(j.costs||[]).forEach(c=>{if(c.cat===name)used++;}));
+    const msg=used?("หมวด \""+name+"\" ถูกใช้ใน "+used+" รายการของงานเก่า — ข้อมูลในงานเก่าจะยังคงอยู่ แต่จะถูกจัดเป็น \"(ไม่ระบุหมวด)\" ในสรุป\n\nยืนยันลบ?"):("ลบหมวด \""+name+"\" ?");
+    if(!confirm(msg))return;
+    DB.costCats.splice(i,1);saveLocal();paintCostCats();
+    const head=document.querySelector(".form-card h3 .pill.on");if(head)head.textContent=DB.costCats.length+" หมวด";
+    toast("ลบหมวดแล้ว");
+  }
+  else if(act==="catup"){
+    if(!Array.isArray(DB.costCats))return;
+    const i=+el.dataset.i;if(i<=0)return;
+    const a=DB.costCats[i-1];DB.costCats[i-1]=DB.costCats[i];DB.costCats[i]=a;
+    saveLocal();paintCostCats();
+  }
+  else if(act==="catdown"){
+    if(!Array.isArray(DB.costCats))return;
+    const i=+el.dataset.i;if(i>=DB.costCats.length-1)return;
+    const a=DB.costCats[i+1];DB.costCats[i+1]=DB.costCats[i];DB.costCats[i]=a;
+    saveLocal();paintCostCats();
+  }
+  else if(act==="resetcats"){
+    if(!confirm("Reset รายการหมวดต้นทุนเป็น default 27 หมวด?\n\nหมวดที่เพิ่ม/แก้/ลบจะถูกแทนที่ — ข้อมูลในงานเก่าไม่ได้รับผลกระทบ"))return;
+    DB.costCats=DEFAULT_COST_CATS.slice();saveLocal();paintCostCats();
+    const head=document.querySelector(".form-card h3 .pill.on");if(head)head.textContent=DB.costCats.length+" หมวด";
+    toast("Reset เป็น default แล้ว ✓","ok");
+  }
   else if(act==="driveconnect"){ensureDriveToken().then(()=>{paintAttachments();toast("เชื่อมต่อ Google Drive แล้ว — กดอัปโหลดได้เลย","ok");}).catch(e=>toast("เชื่อมต่อ Google ไม่สำเร็จ: "+(e&&e.message||e),"err"));}
   else if(act==="attachup"){const fi=$("#attachFile");if(fi)fi.click();}
   else if(act==="attachrm"){formAttachments.splice(+el.dataset.i,1);paintAttachments();}
@@ -1851,6 +2026,9 @@ document.addEventListener("input",e=>{
   else if(act==="recin"){setBE("be-record",el.value);}
   else if(act==="costin"){if(formCosts[+el.dataset.i])formCosts[+el.dataset.i][el.dataset.f]=el.value;refreshFinance();}
   else if(act==="teamin"){if(DB.team[+el.dataset.i])DB.team[+el.dataset.i][el.dataset.f]=el.value;saveLocal();}
+  else if(act==="catin"){if(Array.isArray(DB.costCats)&&DB.costCats[+el.dataset.i]!=null)DB.costCats[+el.dataset.i]=el.value;saveLocal();}
+  else if(act==="coin"){if(!DB.company)DB.company=Object.assign({},DEFAULT_COMPANY);DB.company[el.dataset.f]=el.value;saveLocal();}
+  else if(act==="invin"){/* invoice config — handled in readFormJob on save; no live state needed */}
   else if(act==="countryinput"){
     const which=el.dataset.which;
     paintCountryPanel(which,el.value);
@@ -2183,6 +2361,329 @@ function generatePDF(id){
   w.document.write(buildReportHTML(j));
   w.document.close();
   toast("เปิดหน้ารายงาน "+(j.jobNo||"")+' แล้ว — เลือก "Save as PDF" ในหน้าต่างพิมพ์',"ok");
+}
+
+/* ============================ INVOICE / RECEIPT ============================ */
+function nextInvNo(){
+  const d=new Date();const ym=d.getFullYear()+String(d.getMonth()+1).padStart(2,"0");
+  if(!DB.invSeq)DB.invSeq={};
+  const seq=(DB.invSeq[ym]||0)+1;DB.invSeq[ym]=seq;saveLocal();
+  return "INV-"+ym+"-"+String(seq).padStart(4,"0");
+}
+function nextRcpNo(){
+  const d=new Date();const ym=d.getFullYear()+String(d.getMonth()+1).padStart(2,"0");
+  if(!DB.rcpSeq)DB.rcpSeq={};
+  const seq=(DB.rcpSeq[ym]||0)+1;DB.rcpSeq[ym]=seq;saveLocal();
+  return "RCP-"+ym+"-"+String(seq).padStart(4,"0");
+}
+function autoInvoiceDescription(j){
+  /* generate default description from job context */
+  const t=JOB_TYPES[j.jobType]||{label:""};
+  const pets=j.pets||[];
+  const lines=[];
+  if(j.originCountry||j.destCountry){lines.push("From: "+(j.originCountry||"-"));lines.push("To: "+(j.destCountry||"-"));}
+  if(pets.length){
+    const p=pets.map(pt=>{const breed=pt.breedMix?("Mixed "+pt.breedMix):(pt.breed||"-");return (pt.name||"-")+" ("+(pt.species||"-")+", "+breed+")";}).join(", ");
+    lines.push("Pet(s): "+p);
+  }
+  if(j.travelDate){lines.push("Travel date: "+j.travelDate);}
+  return lines.join("\n");
+}
+function autoInvoiceTitle(j){
+  const t=JOB_TYPES[j.jobType]||{label:""};
+  return t.label||"Pet Relocation Service";
+}
+function numberToWordsEn(n){
+  /* English number to words — for currencies other than THB */
+  const num=Math.floor(Math.abs(Number(n)||0));
+  if(num===0)return "Zero";
+  const ones=["","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten","Eleven","Twelve","Thirteen","Fourteen","Fifteen","Sixteen","Seventeen","Eighteen","Nineteen"];
+  const tens=["","","Twenty","Thirty","Forty","Fifty","Sixty","Seventy","Eighty","Ninety"];
+  function under1000(n){
+    let r="";
+    if(n>=100){r+=ones[Math.floor(n/100)]+" Hundred";n=n%100;if(n)r+=" ";}
+    if(n>=20){r+=tens[Math.floor(n/10)];n=n%10;if(n)r+="-"+ones[n];}
+    else if(n>0)r+=ones[n];
+    return r;
+  }
+  const scales=["","Thousand","Million","Billion"];
+  let result="",i=0,x=num;
+  while(x>0){const part=x%1000;if(part)result=under1000(part)+(scales[i]?" "+scales[i]:"")+(result?" "+result:"");x=Math.floor(x/1000);i++;}
+  return result.trim();
+}
+function fmtDocDate(s){
+  if(!s)return"-";const d=s instanceof Date?s:new Date(s);
+  const mon=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return String(d.getDate()).padStart(2,"0")+"/"+mon[d.getMonth()]+"/"+d.getFullYear();
+}
+function computeVAT(j){
+  const co=DB.company||DEFAULT_COMPANY;
+  const rate=Number(co.vatRate)||0;const mode=co.vatMode||"exclusive";
+  const sell=Number(j.sellPrice)||0;
+  if(mode==="none"||rate<=0)return {subtotal:sell,vat:0,total:sell,rate:0,mode:"none"};
+  if(mode==="inclusive"){
+    const subtotal=Math.round((sell/(1+rate/100))*100)/100;
+    const vat=Math.round((sell-subtotal)*100)/100;
+    return {subtotal,vat,total:sell,rate,mode};
+  }
+  /* exclusive */
+  const vat=Math.round(sell*rate/100*100)/100;
+  return {subtotal:sell,vat,total:sell+vat,rate,mode};
+}
+function bahtText(n){
+  /* Convert number to Thai baht text */
+  const num=Math.abs(Number(n)||0);
+  const intPart=Math.floor(num);
+  const satang=Math.round((num-intPart)*100);
+  const TH_DIG=["ศูนย์","หนึ่ง","สอง","สาม","สี่","ห้า","หก","เจ็ด","แปด","เก้า"];
+  const TH_POS=["","สิบ","ร้อย","พัน","หมื่น","แสน","ล้าน"];
+  function readGroup(s){
+    /* s is up to 7 digits */
+    let r="";const len=s.length;
+    for(let i=0;i<len;i++){
+      const dig=+s[i];const pos=len-1-i;
+      if(dig===0)continue;
+      if(pos===1&&dig===1)r+="สิบ";
+      else if(pos===1&&dig===2)r+="ยี่สิบ";
+      else if(pos===0&&dig===1&&len>1)r+="เอ็ด";
+      else r+=TH_DIG[dig]+TH_POS[pos];
+    }
+    return r;
+  }
+  let result="";
+  if(intPart===0)result="ศูนย์";
+  else{
+    const s=String(intPart);
+    if(s.length<=7)result=readGroup(s);
+    else{
+      const head=s.slice(0,s.length-6);
+      const tail=s.slice(-6);
+      result=readGroup(head)+"ล้าน"+readGroup(tail);
+    }
+  }
+  result+="บาท";
+  if(satang===0)result+="ถ้วน";
+  else result+=readGroup(String(satang).padStart(2,"0"))+"สตางค์";
+  return result;
+}
+function buildDocHTML(j,kind){
+  /* kind: "invoice" | "receipt" — match Convey existing template format */
+  const co=Object.assign({},DEFAULT_COMPANY,DB.company||{});
+  const isReceipt=kind==="receipt";
+  const status=isReceipt?"(ISSUED)":((j.invoice&&j.invoice.no)?"(ISSUED)":"(Draft)");
+  const docColor=isReceipt?"#10b981":"#1d4ed8";
+  const docTitle=isReceipt?"Receipt":"Invoice";
+  const docSub=isReceipt?"ใบเสร็จรับเงิน":"ใบแจ้งหนี้ / ใบเรียกเก็บเงิน";
+  const docNo=isReceipt?(j.receipt&&j.receipt.no||"-"):(j.invoice&&j.invoice.no||"-");
+  const issuedAt=isReceipt?(j.receipt&&j.receipt.issuedAt||new Date().toISOString()):(j.invoice&&j.invoice.issuedAt||new Date().toISOString());
+  const cur=j.invoiceCurrency||"THB";
+  const qty=Number(j.invoiceQty)||1;
+  const unitPrice=Number(j.sellPrice)||0;
+  const subtotal=unitPrice*qty;
+  /* VAT calc */
+  const vatMode=co.vatMode||"none";const vatRate=Number(co.vatRate)||0;
+  let vatAmt=0,grandTotal=subtotal;
+  if(vatMode==="exclusive"&&vatRate>0){vatAmt=subtotal*vatRate/100;grandTotal=subtotal+vatAmt;}
+  else if(vatMode==="inclusive"&&vatRate>0){vatAmt=subtotal-(subtotal/(1+vatRate/100));grandTotal=subtotal;}
+  /* invoice link (for receipt) */
+  const invRef=isReceipt&&j.invoice&&j.invoice.no?j.invoice.no:"";
+  /* amount in words */
+  const amtWords=cur==="THB"?bahtText(grandTotal):(numberToWordsEn(grandTotal)+(grandTotal>=1?" "+cur:""));
+  /* description */
+  const invTitle=(j.invoiceTitle||"").trim()||autoInvoiceTitle(j);
+  const invDesc=(j.invoiceDescription!=null&&j.invoiceDescription!=="")?j.invoiceDescription:autoInvoiceDescription(j);
+  const reference=(j.invoiceReference||"").trim();
+  const paymentMethod=j.invoicePaymentMethod||"โอนเงิน / Bank Transfer";
+  const payDate=isReceipt?(j.paidDate||(issuedAt?issuedAt.slice(0,10):"")):"";
+  /* contact info */
+  const coContacts=[];if(co.phone)coContacts.push("☎ "+co.phone);if(co.email)coContacts.push("✉ "+co.email);
+  const css=`
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:-apple-system,"Noto Sans Thai","Sarabun",Tahoma,sans-serif;color:#0f172a;font-size:11.5px;line-height:1.45;padding:24px 30px;max-width:820px;margin:0 auto;}
+    .top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:20px;}
+    .brand{flex:1;}
+    .brand .logo-wrap{display:flex;align-items:center;gap:10px;margin-bottom:4px;}
+    .brand .logo-img{max-height:50px;max-width:80px;object-fit:contain;}
+    .brand .logo-text{font-size:24px;font-weight:900;color:#ea580c;letter-spacing:1px;line-height:1;}
+    .brand .tag{font-size:9px;font-weight:700;color:#ea580c;letter-spacing:1.5px;text-transform:uppercase;margin-top:2px;}
+    .brand .tag-th{font-size:9.5px;color:#475569;margin-top:1px;}
+    .doc-title-wrap{text-align:right;}
+    .doc-status{font-size:11px;color:#64748b;font-style:italic;margin-bottom:2px;}
+    .doc-title{font-size:32px;font-weight:800;color:`+docColor+`;line-height:1;margin-bottom:4px;}
+    .doc-sub{font-size:10.5px;color:#64748b;}
+    .doc-id{margin-top:8px;font-size:11px;color:#0f172a;text-align:right;}
+    .doc-id .row{display:flex;justify-content:space-between;gap:14px;padding:1.5px 0;}
+    .doc-id .row .lbl{color:#475569;}
+    .doc-id .row .val{font-weight:600;color:#0f172a;}
+    .header-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;padding:10px 0 12px;border-bottom:1px solid #cbd5e1;margin-bottom:14px;}
+    .col h5{font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;font-weight:700;display:none;}
+    .col .pair{display:grid;grid-template-columns:62px 1fr;gap:6px;font-size:10.5px;margin-bottom:4px;align-items:start;}
+    .col .pair .k{color:#475569;font-weight:500;}
+    .col .pair .v{color:#0f172a;line-height:1.5;}
+    .col .pair .v b{font-weight:700;display:block;font-size:11.5px;}
+    .col .pair .v .en{color:#64748b;font-size:10px;display:block;}
+    table.items{width:100%;border-collapse:collapse;margin-bottom:10px;}
+    table.items th{font-size:9.5px;color:#94a3b8;letter-spacing:.6px;text-transform:uppercase;font-weight:700;padding:8px 8px;text-align:left;border-bottom:1px solid #cbd5e1;}
+    table.items td{padding:10px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top;font-size:11px;}
+    table.items th.c,table.items td.c{text-align:center;width:32px;}
+    table.items th.r,table.items td.r{text-align:right;white-space:nowrap;}
+    .item-title{font-weight:700;font-size:12.5px;color:#0f172a;margin-bottom:3px;}
+    .item-sub{font-size:10.5px;color:#475569;white-space:pre-line;line-height:1.55;}
+    .bottom-grid{display:grid;grid-template-columns:1fr 320px;gap:24px;margin-top:6px;}
+    .summary-section h4{font-size:11px;color:#475569;font-weight:700;margin-bottom:4px;}
+    .summary-section .ln{display:flex;justify-content:space-between;font-size:11px;padding:1.5px 0;color:#475569;}
+    .summary-section .ln b{color:#0f172a;font-weight:600;}
+    .summary-section .words{font-style:italic;color:#64748b;font-size:10.5px;text-align:right;margin-top:1px;}
+    .total-box{text-align:right;padding-left:20px;}
+    .total-box .lbl{font-size:9.5px;letter-spacing:.6px;color:#64748b;text-transform:uppercase;}
+    .total-box .amt{font-size:22px;font-weight:800;color:`+docColor+`;margin-top:2px;line-height:1.1;}
+    .total-box .amt .cur{font-size:13px;font-weight:700;color:`+docColor+`;}
+    .total-box .pay-row{border-top:1px solid #e2e8f0;margin-top:8px;padding-top:6px;display:flex;justify-content:space-between;font-size:11px;color:#475569;}
+    .total-box .pay-row b{color:#0f172a;font-weight:600;}
+    .pay-block{margin-top:10px;}
+    .pay-block h4{font-size:11px;font-weight:700;color:#475569;margin-bottom:4px;}
+    .pay-block .ln{display:flex;justify-content:space-between;font-size:11px;padding:1.5px 0;color:#475569;}
+    .pay-block .ln b{color:#0f172a;}
+    .bank-info{margin-top:8px;padding:8px 10px;background:#f8fafc;border-radius:6px;font-size:10.5px;color:#334155;white-space:pre-line;}
+    .sig{display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:30px;border-top:1px dashed #94a3b8;padding-top:14px;}
+    .sig .b{text-align:center;font-size:11px;}
+    .sig .b .role{color:#64748b;margin-bottom:30px;}
+    .sig .b .name{font-weight:600;color:#0f172a;}
+    .sig .b .dt{font-size:10px;color:#64748b;margin-top:2px;}
+    @media print{body{padding:14px 22px;}.no-print{display:none!important;}@page{margin:8mm;size:A4;}}
+    .actions{position:fixed;top:12px;right:12px;display:flex;gap:8px;z-index:10;}
+    .actions button{background:`+docColor+`;color:white;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;box-shadow:0 4px 10px rgba(0,0,0,.15);}
+    .actions button.sec{background:#64748b;}
+  `;
+  function pair(k,v){return v?'<div class="pair"><span class="k">'+esc(k)+'</span><span class="v">'+v+'</span></div>':"";}
+  /* Brand block */
+  const logoBlock=co.logo?'<img src="'+esc(co.logo)+'" class="logo-img" alt="logo">':'<div class="logo-text">CONVEY</div>';
+  /* Seller column */
+  let sellerHtml="";
+  sellerHtml+=pair("Seller :",'<b>'+esc(co.legalName||co.name||"")+'</b>'+(co.legalNameEn?'<span class="en">'+esc(co.legalNameEn)+'</span>':""));
+  sellerHtml+=pair("Address :",esc(co.address||"")+(co.addressEn?'<br><span class="en">'+esc(co.addressEn)+'</span>':""));
+  sellerHtml+=pair("Tax No. :",esc(co.taxId||"-")+(co.branch?(' <span style="color:#64748b">('+esc(co.branch)+')</span>'):""));
+  if(coContacts.length)sellerHtml+=pair("",coContacts.map(c=>esc(c)).join("&nbsp;&nbsp;"));
+  if(co.website)sellerHtml+=pair("",'🌐 '+esc(co.website));
+  /* Customer column */
+  const custNameHtml='<b>'+esc(j.customerName||"-")+'</b>';
+  const custBranch=j.customerBranch?j.customerBranch:"";
+  const custAddrHtml=j.customerAddress?esc(j.customerAddress).replace(/\n/g,"<br>"):"-";
+  const contactBits=[];if(j.customerName)contactBits.push("👤 "+esc(j.customerName));if(j.customerPhone)contactBits.push("📞 "+esc(j.customerPhone));
+  let custHtml="";
+  custHtml+=pair("Customer :",custNameHtml);
+  if(custBranch)custHtml+=pair("Branch :",esc(custBranch));
+  custHtml+=pair("Address :",custAddrHtml);
+  custHtml+=pair("Tax No. :",esc(j.customerTaxId||"-"));
+  custHtml+=pair("Contact :",contactBits.join("<br>"));
+  /* Doc info column */
+  let docInfoHtml='<div class="doc-id">';
+  docInfoHtml+='<div class="row"><span class="lbl">Doc. No. :</span><span class="val">'+esc(docNo)+'</span></div>';
+  docInfoHtml+='<div class="row"><span class="lbl">Issue Date :</span><span class="val">'+esc(fmtDocDate(issuedAt))+'</span></div>';
+  if(isReceipt&&payDate)docInfoHtml+='<div class="row"><span class="lbl">Pay Date :</span><span class="val">'+esc(fmtDocDate(payDate))+'</span></div>';
+  if(invRef)docInfoHtml+='<div class="row"><span class="lbl">Re: Inv. :</span><span class="val">'+esc(invRef)+'</span></div>';
+  if(reference)docInfoHtml+='<div class="row"><span class="lbl">Ref. :</span><span class="val">'+esc(reference)+'</span></div>';
+  docInfoHtml+='</div>';
+  /* Build full HTML */
+  let html='<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>'+esc(docTitle)+' '+esc(docNo)+'</title><style>'+css+'</style></head><body>';
+  html+='<div class="actions no-print"><button onclick="window.print()">🖨 พิมพ์ / Save as PDF</button><button class="sec" onclick="window.close()">ปิด</button></div>';
+  /* TOP — brand + doc title */
+  html+='<div class="top">';
+  html+='<div class="brand"><div class="logo-wrap">'+logoBlock+'</div>'+
+    '<div class="tag">'+esc(co.name||"Pet Relocation Services")+'</div>'+
+    (co.tagline?'<div class="tag-th">'+esc(co.tagline)+'</div>':'')+
+    '</div>';
+  html+='<div class="doc-title-wrap"><div class="doc-status">'+esc(status)+'</div>'+
+    '<div class="doc-title">'+esc(docTitle)+'</div>'+
+    '<div class="doc-sub">'+esc(docSub)+'</div>'+
+    '</div>';
+  html+='</div>';
+  /* HEADER GRID — seller / customer / doc info */
+  html+='<div class="header-grid">'+
+    '<div class="col">'+sellerHtml+'</div>'+
+    '<div class="col">'+custHtml+'</div>'+
+    '<div class="col">'+docInfoHtml+'</div>'+
+    '</div>';
+  /* ITEMS TABLE */
+  html+='<table class="items"><thead><tr>'+
+    '<th class="c">#</th><th>DESCRIPTION</th><th class="r">QUANTITY</th><th class="r">PRICE</th><th class="r">AMOUNT</th>'+
+    '</tr></thead><tbody>';
+  html+='<tr><td class="c">1.</td>'+
+    '<td><div class="item-title">'+esc(invTitle)+'</div>'+
+    (invDesc?'<div class="item-sub">'+esc(invDesc)+'</div>':'')+
+    '</td>'+
+    '<td class="r">'+qty.toFixed(2)+'</td>'+
+    '<td class="r">'+money(unitPrice)+'</td>'+
+    '<td class="r">'+money(subtotal)+'</td></tr>';
+  html+='</tbody></table>';
+  /* BOTTOM — summary + total */
+  html+='<div class="bottom-grid">';
+  html+='<div class="summary-section"><h4>📊 Summary</h4>'+
+    '<div class="ln"><span>Total Amount</span><b>'+money(subtotal)+' '+esc(cur)+'</b></div>'+
+    (vatMode==="exclusive"&&vatRate>0?'<div class="ln"><span>VAT '+vatRate+'%</span><b>'+money(vatAmt)+' '+esc(cur)+'</b></div>':"")+
+    (vatMode==="inclusive"&&vatRate>0?'<div class="ln"><span>VAT '+vatRate+'% (included)</span><b>'+money(vatAmt)+' '+esc(cur)+'</b></div>':"")+
+    '<div class="ln"><span>('+esc(cur)+')</span><span class="words">'+esc(amtWords)+'</span></div>'+
+    '</div>';
+  /* Total box */
+  html+='<div class="total-box">'+
+    '<div class="lbl">'+(isReceipt?"AMOUNT RECEIVED":"TOTAL AMOUNT")+'</div>'+
+    '<div class="amt">'+money(grandTotal)+' <span class="cur">'+esc(cur)+'</span></div>';
+  if(isReceipt){
+    html+='<div class="pay-row"><span>Status</span><b style="color:'+docColor+'">✓ PAID</b></div>';
+  }else{
+    html+='<div class="pay-row"><span>Payment Amount</span><b>'+money(grandTotal)+' '+esc(cur)+'</b></div>';
+  }
+  html+='</div>';
+  html+='</div>';
+  /* Payment received section (receipt only) */
+  if(isReceipt){
+    html+='<div class="pay-block"><h4>💵 Payment Received</h4>'+
+      '<div class="ln"><span>Payment Date</span><b>'+esc(fmtDocDate(payDate))+'</b></div>'+
+      '<div class="ln"><span>Method</span><b>'+esc(paymentMethod)+'</b></div>'+
+      '</div>';
+  }
+  /* Bank info — only invoice */
+  if(!isReceipt&&co.bankInfo){
+    html+='<div class="bank-info"><b style="color:#475569">Bank info / ช่องทางชำระเงิน:</b><br>'+esc(co.bankInfo)+'</div>';
+  }
+  /* Signatures */
+  html+='<div class="sig">'+
+    '<div class="b"><div class="role">Approved by (Seller)</div><div class="name">'+esc(co.authorizedSigner||"")+'</div><div class="dt">'+esc(fmtDocDate(issuedAt))+'</div></div>'+
+    '<div class="b"><div class="role">Approved by (Customer)</div><div class="name">'+esc(j.customerName||"")+'</div></div>'+
+    '</div>';
+  html+='</body></html>';
+  return html;
+}
+function generateInvoice(id){
+  const j=getJob(id);
+  if(!j){toast("ไม่พบข้อมูลงาน","err");return;}
+  if(!j.sellPrice||Number(j.sellPrice)<=0){toast("ยังไม่ได้ใส่ราคาขายลูกค้า — กรอกราคาก่อนออก Invoice","err");return;}
+  const co=DB.company||DEFAULT_COMPANY;
+  if(!co.taxId||!co.address){if(!confirm("ยังไม่ได้กรอกข้อมูลบริษัท (เลขผู้เสียภาษี/ที่อยู่) ในหน้าตั้งค่า — ดำเนินการต่อหรือไม่?"))return;}
+  if(!j.invoice||!j.invoice.no){
+    j.invoice={no:nextInvNo(),issuedAt:new Date().toISOString()};
+    persistJob(j);
+  }
+  const w=window.open("","_blank");
+  if(!w){toast("เบราว์เซอร์บล็อก pop-up — กรุณาอนุญาต pop-up","err");return;}
+  w.document.write(buildDocHTML(j,"invoice"));w.document.close();
+  toast("เปิด Invoice "+j.invoice.no+" แล้ว ✓","ok");
+}
+function generateReceipt(id){
+  const j=getJob(id);
+  if(!j){toast("ไม่พบข้อมูลงาน","err");return;}
+  if(!j.paid){toast("ยังไม่ได้ mark Paid — เปลี่ยนสถานะการเงินก่อน","err");return;}
+  if(!j.sellPrice||Number(j.sellPrice)<=0){toast("ยังไม่ได้ใส่ราคาขายลูกค้า","err");return;}
+  const co=DB.company||DEFAULT_COMPANY;
+  if(!co.taxId||!co.address){if(!confirm("ยังไม่ได้กรอกข้อมูลบริษัทในหน้าตั้งค่า — ดำเนินการต่อหรือไม่?"))return;}
+  if(!j.receipt||!j.receipt.no){
+    j.receipt={no:nextRcpNo(),issuedAt:new Date().toISOString()};
+    persistJob(j);
+  }
+  const w=window.open("","_blank");
+  if(!w){toast("เบราว์เซอร์บล็อก pop-up — กรุณาอนุญาต pop-up","err");return;}
+  w.document.write(buildDocHTML(j,"receipt"));w.document.close();
+  toast("เปิด Receipt "+j.receipt.no+" แล้ว ✓","ok");
 }
 
 /* ============================ INIT ============================ */

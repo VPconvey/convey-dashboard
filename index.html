@@ -1052,9 +1052,12 @@ function renderFinanceDashboard(){
        '<td>'+fmtCE(j.travelDate)+'</td>'+
        '<td class="t-r">'+money(s)+'</td><td class="t-r">'+money(c)+'</td>'+
        '<td class="t-r '+(pr<0?"neg-amt":"")+'">'+money(pr)+'</td>'+
-       '<td>'+(j.paid?'<span class="badge bg-paid">จ่ายแล้ว</span>':'<span class="badge bg-unpaid">ค้างจ่าย</span>')+'</td>'+
+       '<td><button class="btn sm" data-act="paid" data-id="'+j.id+'" title="คลิกเพื่อเปลี่ยนสถานะ" style="padding:3px 8px">'+
+       (j.paid?'<span class="badge bg-paid">✓ จ่ายแล้ว</span>':'<span class="badge bg-unpaid">⏳ ค้างจ่าย</span>')+'</button></td>'+
        '<td><div class="row-actions">'+
        '<button class="btn sm ghost" data-act="pdf" data-id="'+j.id+'" title="สร้างรายงาน PDF">🖨</button>'+
+       '<button class="btn sm ghost" data-act="invoice" data-id="'+j.id+'" title="ออก Invoice">🧾</button>'+
+       (j.paid?'<button class="btn sm ghost" data-act="receipt" data-id="'+j.id+'" title="ออก Receipt">✅</button>':'')+
        '<button class="btn sm ghost" data-act="dup" data-id="'+j.id+'" title="ทำสำเนางาน">📋</button>'+
        '<button class="btn sm ghost" data-act="edit" data-id="'+j.id+'" title="แก้ไข">✏️</button></div></td></tr>';
   });
@@ -1886,7 +1889,20 @@ document.addEventListener("click",e=>{
   else if(act==="clearfilter"){STATE.filters={};render();}
   else if(act==="finpreset"){const r=presetRange(el.dataset.preset);STATE.filters.f_from=r[0];STATE.filters.f_to=r[1];render();}
   else if(act==="toggle"){toggleStep(el.dataset.id,el.dataset.kind,+el.dataset.idx);}
-  else if(act==="paid"){const j=getJob(el.dataset.id);if(j){j.paid=!j.paid;persistJob(j);render();}}
+  else if(act==="paid"){const j=getJob(el.dataset.id);if(!j)return;
+    if(!j.paid){
+      /* toggling to paid — ask for date */
+      const def=j.paidDate||todayStr();
+      const d=prompt("วันที่รับเงิน (YYYY-MM-DD) — กด OK เพื่อใช้ "+def+" หรือพิมพ์วันที่อื่น",def);
+      if(d===null)return; /* cancelled */
+      const v=(d||"").trim();
+      j.paid=true;j.paidDate=v||def;
+    }else{
+      if(!confirm("เปลี่ยน \""+(j.customerName||"-")+"\" กลับเป็น ค้างจ่าย?"))return;
+      j.paid=false;j.paidDate="";
+    }
+    persistJob(j);toast(j.paid?"บันทึก: รับเงินแล้ว ✓":"กลับเป็นค้างจ่าย");render();
+  }
   else if(act==="edit"){STATE.editId=el.dataset.id;STATE.dupFrom=null;STATE.view="new";render();window.scrollTo(0,0);}
   else if(act==="dup"){STATE.editId=null;STATE.dupFrom=el.dataset.id;STATE.view="new";STATE.filters={};render();window.scrollTo(0,0);}
   else if(act==="open"){const j=getJob(el.dataset.id);if(j){STATE.view="job:"+j.jobType;STATE.filters={};render();window.scrollTo(0,0);}}

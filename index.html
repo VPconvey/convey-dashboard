@@ -291,10 +291,10 @@ const JOB_TYPES = {
     steps:["แจ้งค่าใช้จ่าย","จัดเตรียม ร.1/1","ยื่นเอกสารให้เจ้าหน้าที่","ติดตามสถานะเที่ยวบิน","ส่งเอกสารให้ Supplier","ผ่านพิธีการ","จัดส่งสัตว์เลี้ยงให้ลูกค้า","เก็บค่าใช้จ่าย","ปิดจ๊อบ"]},
   rabies_titer:{label:"Rabies Titer",icon:"🩸",dir:"",
     docs:[],
-    steps:["รับสมุดวัคซีน","รับสำเนา Passport ผู้โดยสาร","ส่งรายละเอียดให้แลป","จ่ายเงินแลป","เก็บเงินลูกค้า","ส่งผลเลือดให้ลูกค้า","เก็บผลตัวจริง / ส่งให้ลูกค้า"]},
+    steps:["รับสมุดวัคซีน","รับสำเนา Passport ผู้โดยสาร","ส่งรายละเอียดให้แลป","จ่ายเงินแลป","เก็บเงินลูกค้า","ส่งผลเลือดให้ลูกค้า","เก็บผลตัวจริง / ส่งให้ลูกค้า","ปิดจ๊อบ"]},
   vaccine_book:{label:"สมุดวัคซีน",icon:"📒",dir:"",
     docs:[],
-    steps:["บันทึกรายละเอียดสัตว์เลี้ยง","สแกนเข้า Drive พร้อม QR","ส่งให้ลูกค้า","เก็บเงิน"]},
+    steps:["บันทึกรายละเอียดสัตว์เลี้ยง","สแกนเข้า Drive พร้อม QR","ส่งให้ลูกค้า","เก็บเงิน","ปิดจ๊อบ"]},
   transport:{label:"ขนส่ง (Pick up / Delivery)",icon:"🚐",dir:"",
     docs:[],
     steps:["จัดรถ","บันทึกข้อมูลสถานที่รับ-ส่ง","เก็บเงิน","ปิดจ๊อบ"]},
@@ -1055,6 +1055,7 @@ function renderFinanceDashboard(){
        '<td><button class="btn sm" data-act="paid" data-id="'+j.id+'" title="คลิกเพื่อเปลี่ยนสถานะ" style="padding:3px 8px">'+
        (j.paid?'<span class="badge bg-paid">✓ จ่ายแล้ว</span>':'<span class="badge bg-unpaid">⏳ ค้างจ่าย</span>')+'</button></td>'+
        '<td><div class="row-actions">'+
+       '<button class="btn sm ghost" data-act="closejob" data-id="'+j.id+'" title="'+(isClosed(j)?"คลิกเพื่อเปิดงานกลับ":"คลิกเพื่อปิดงาน")+'">'+(isClosed(j)?'🔓':'🔒')+'</button>'+
        '<button class="btn sm ghost" data-act="pdf" data-id="'+j.id+'" title="สร้างรายงาน PDF">🖨</button>'+
        '<button class="btn sm ghost" data-act="invoice" data-id="'+j.id+'" title="ออก Invoice">🧾</button>'+
        (j.paid?'<button class="btn sm ghost" data-act="receipt" data-id="'+j.id+'" title="ออก Receipt">✅</button>':'')+
@@ -1284,6 +1285,7 @@ function renderForm(){
     (editing?'<button class="btn" data-act="pdf" data-id="'+esc(STATE.editId)+'">🖨 รายงาน PDF</button>':'')+
     (editing?'<button class="btn" data-act="invoice" data-id="'+esc(STATE.editId)+'" style="background:#fff7ed;border-color:#fed7aa;color:#9a3412">🧾 Invoice'+((j.invoice&&j.invoice.no)?(' ('+esc(j.invoice.no)+')'):'')+'</button>':'')+
     (editing?'<button class="btn" data-act="receipt" data-id="'+esc(STATE.editId)+'" style="background:'+(j.paid?'#dcfce7':'#f1f5f9')+';border-color:'+(j.paid?'#86efac':'var(--line)')+';color:'+(j.paid?'#15803d':'#94a3b8')+'" '+(j.paid?'':'disabled title="ออกใบเสร็จได้เมื่อ mark Paid แล้ว"')+'>✅ Receipt'+((j.receipt&&j.receipt.no)?(' ('+esc(j.receipt.no)+')'):'')+'</button>':'')+
+    (editing?'<button class="btn" data-act="closejob" data-id="'+esc(STATE.editId)+'" style="background:'+(isClosed(j)?'#dcfce7':'#fff7ed')+';border-color:'+(isClosed(j)?'#86efac':'#fed7aa')+';color:'+(isClosed(j)?'#15803d':'#9a3412')+'" title="'+(isClosed(j)?"งานนี้ปิดแล้ว — คลิกเพื่อเปิดงานใหม่":"ติ๊ก step สุดท้าย (ปิดจ๊อบ) ของ checklist ให้อัตโนมัติ")+'">'+(isClosed(j)?'🔓 เปิดงาน':'🔒 ปิดงาน')+'</button>':'')+
     '<button class="btn" data-act="nav" data-view="dashboard">ยกเลิก</button></div>';
 
   $("#content").innerHTML=h;
@@ -1909,6 +1911,24 @@ document.addEventListener("click",e=>{
   else if(act==="pdf"){generatePDF(el.dataset.id);}
   else if(act==="invoice"){generateInvoice(el.dataset.id);}
   else if(act==="receipt"){generateReceipt(el.dataset.id);}
+  else if(act==="closejob"){
+    const j=getJob(el.dataset.id);if(!j)return;
+    const steps=jobItems(j).steps;
+    if(!steps.length){toast("งานประเภทนี้ไม่มี checklist steps","err");return;}
+    if(!j.checklist)j.checklist={docs:{},steps:{}};
+    if(!j.checklist.steps)j.checklist.steps={};
+    const lastIdx=steps.length-1;
+    const c=j.checklist.steps[lastIdx]||{done:false,date:""};
+    if(c.done){
+      if(!confirm("เปิดงาน \""+(j.customerName||"-")+"\" กลับมาทำต่อ?"))return;
+      c.done=false;j.checklist.steps[lastIdx]=c;
+      persistJob(j);toast("เปิดงานกลับมาแล้ว",'ok');
+    }else{
+      c.done=true;c.date=todayStr();j.checklist.steps[lastIdx]=c;
+      persistJob(j);toast("ปิดงานแล้ว ✓",'ok');
+    }
+    render();
+  }
   else if(act==="del"){const j=getJob(el.dataset.id);
     if(j&&confirm("ลบงานของ \""+(j.customerName||"-")+"\" ?")){deleteJob(el.dataset.id);toast("ลบงานแล้ว");render();}}
   else if(act==="addvax"){syncPetsFromDOM();formPets[+el.dataset.pet].vax[el.dataset.grp].push({date:"",expiry:""});renderPets();}

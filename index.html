@@ -865,6 +865,7 @@ function renderDashboard(){
   // filters
   const f=STATE.filters;
   h+='<div class="filters">';
+  h+=fldSearch(f.f_q);
   h+=fldSelect("ประเภทงาน","f_type",[["","ทุกประเภท"]].concat(TYPE_ORDER.map(k=>[k,JOB_TYPES[k].label])),f.f_type);
   h+=fldInput("ค้นหาชื่อลูกค้า","f_name","text",f.f_name,"พิมพ์ชื่อ...");
   h+=fldSelect("กรองตามวันที่","f_datefield",[["travel","วันเดินทาง"],["record","วันที่บันทึกงาน"]],f.f_datefield||"travel");
@@ -958,6 +959,7 @@ function fStat(cls,lbl,valStr,neg){
 function renderFinanceDashboard(){
   const f=STATE.filters;
   let h='<div class="filters">';
+  h+=fldSearch(f.f_q);
   h+=fldInput("ค้นหาชื่อลูกค้า","f_name","text",f.f_name,"พิมพ์ชื่อ...");
   h+=fldSelect("ประเภทงาน","f_type",[["","ทุกประเภท"]].concat(TYPE_ORDER.map(k=>[k,JOB_TYPES[k].label])),f.f_type);
   h+=fldSelect("กรองตามวันที่","f_datefield",[["travel","วันเดินทาง"],["record","วันที่บันทึกงาน"]],f.f_datefield||"travel");
@@ -1067,8 +1069,15 @@ function renderFinanceDashboard(){
 }
 
 /* ============================ FILTERS ============================ */
+function jobSearchHay(j){
+  const ps=j.pets||[];
+  const parts=[j.jobNo,j.customerName,j.customerPhone,j.recordDate,toBE(j.recordDate),fmtCE(j.recordDate),j.travelDate,toBE(j.travelDate),fmtCE(j.travelDate)];
+  ps.forEach(p=>{parts.push(p.name,p.microchip);});
+  return parts.filter(x=>x).join(" ").toLowerCase();
+}
 function applyFilters(jobs,f){
   return jobs.filter(j=>{
+    if(f.f_q){const q=f.f_q.trim().toLowerCase();if(q){const hay=jobSearchHay(j);if(!q.split(/\s+/).every(t=>hay.includes(t)))return false;}}
     if(f.f_type&&j.jobType!==f.f_type)return false;
     if(f.f_name&&!(j.customerName||"").toLowerCase().includes(f.f_name.toLowerCase()))return false;
     const _df=f.f_datefield==="record"?(j.recordDate||""):(j.travelDate||"");
@@ -1085,6 +1094,12 @@ function applyFilters(jobs,f){
 function fldInput(lbl,key,type,val,ph){
   return '<div class="fld"><label>'+lbl+'</label><input type="'+type+'" data-act="filter" data-key="'+key+'" value="'+esc(val||"")+'" placeholder="'+(ph||"")+'"></div>';
 }
+function fldSearch(val){
+  return '<div class="fld fld-search" style="flex:1 1 260px;min-width:240px">'+
+    '<label>🔍 ค้นหา (Job No · ชื่อลูกค้า · ไมโครชิพ · ชื่อสัตว์ · วันที่บันทึก)</label>'+
+    '<input type="text" data-act="filter" data-key="f_q" value="'+esc(val||"")+'" placeholder="พิมพ์คำค้น เช่น CV-001, มาลี, 900..., 31 ม.ค. 2569">'+
+    '</div>';
+}
 function fldSelect(lbl,key,opts,val){
   let o=opts.map(p=>'<option value="'+esc(p[0])+'"'+(val===p[0]?" selected":"")+'>'+esc(p[1])+'</option>').join("");
   return '<div class="fld"><label>'+lbl+'</label><select data-act="filter" data-key="'+key+'">'+o+'</select></div>';
@@ -1094,6 +1109,7 @@ function fldSelect(lbl,key,opts,val){
 function renderJobTab(typeKey){
   const t=JOB_TYPES[typeKey];const f=STATE.filters;
   let h='<div class="filters">';
+  h+=fldSearch(f.f_q);
   h+=fldInput("ค้นหาชื่อลูกค้า","f_name","text",f.f_name,"พิมพ์ชื่อ...");
   h+=fldSelect("กรองตามวันที่","f_datefield",[["travel","วันเดินทาง"],["record","วันที่บันทึกงาน"]],f.f_datefield||"travel");
   h+=fldInput("ตั้งแต่วันที่","f_from","date",f.f_from);

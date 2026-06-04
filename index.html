@@ -796,12 +796,23 @@ async function createCalendarEvent(job,attendees){
   if(!r.ok)throw new Error("สร้าง event ไม่สำเร็จ (HTTP "+r.status+") — ตรวจว่าเปิด Calendar API ใน Google Cloud แล้ว");
   return await r.json();
 }
-async function createReminderEvent(job,label,date,attendees){
+async function createReminderEvent(job,label,date,attendees,time){
   attendees=Array.isArray(attendees)?attendees.filter(x=>x):[];
   const token=await ensureDriveToken();
-  const event={summary:calEventTitle(job,label),description:calEventDesc(job),
-    start:{date:date},end:{date:date},
-    reminders:{useDefault:false,overrides:[{method:"popup",minutes:1440},{method:"email",minutes:1440}]}};
+  let startEnd,overrides;
+  if(time){
+    // มีเวลา → นัดเวลานั้น ยาว 1 ชม. เตือน 1 วันก่อน + 1 ชม.ก่อน
+    function fmtLocal(x){return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0")+"T"+String(x.getHours()).padStart(2,"0")+":"+String(x.getMinutes()).padStart(2,"0")+":00";}
+    const s=new Date(date+"T"+time+":00");
+    const e=new Date(s.getTime()+3600000);
+    startEnd={start:{dateTime:fmtLocal(s),timeZone:"Asia/Bangkok"},end:{dateTime:fmtLocal(e),timeZone:"Asia/Bangkok"}};
+    overrides=[{method:"popup",minutes:1440},{method:"email",minutes:1440},{method:"popup",minutes:60}];
+  }else{
+    startEnd={start:{date:date},end:{date:date}};
+    overrides=[{method:"popup",minutes:1440},{method:"email",minutes:1440}];
+  }
+  const event=Object.assign({summary:calEventTitle(job,label),description:calEventDesc(job),
+    reminders:{useDefault:false,overrides:overrides}},startEnd);
   if(attendees.length)event.attendees=attendees.map(e=>({email:e}));
   const url="https://www.googleapis.com/calendar/v3/calendars/primary/events"+(attendees.length?"?sendUpdates=all":"");
   const r=await fetch(url,{method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify(event)});
@@ -872,7 +883,7 @@ function paintCalendar(){
     const rems=editing.reminders||[];
     if(rems.length){
       rems.forEach((r,i)=>{
-        h+='<div class="rem-row"><span style="flex:1">🔔 <b>'+esc(r.label)+'</b> — '+fmtCE(r.date)+' <span class="mini">('+(toBE(r.date)||"")+')</span></span>'+
+        h+='<div class="rem-row"><span style="flex:1">🔔 <b>'+esc(r.label)+'</b> — '+fmtCE(r.date)+(r.time?(' ⏰ '+esc(r.time)+' น.'):'')+' <span class="mini">('+(toBE(r.date)||"")+')</span></span>'+
           (r.link?'<a class="btn sm" href="'+esc(r.link)+'" target="_blank" rel="noopener">เปิด</a>':'')+
           '<button class="btn sm danger" data-act="remdel" data-i="'+i+'">ลบ</button></div>';
       });
@@ -883,8 +894,9 @@ function paintCalendar(){
       '</select></div>'+
       '<div class="f" id="rem-custom-wrap" style="display:none;min-width:170px;margin:0"><label>หัวข้อ (พิมพ์เอง)</label><input type="text" id="rem-custom" placeholder="เช่น ตามผลแลป"></div>'+
       '<div class="f" style="margin:0"><label>วันที่เตือน</label><input type="date" id="rem-date"></div>'+
+      '<div class="f" style="margin:0"><label>เวลา (ไม่บังคับ)</label><input type="time" id="rem-time"></div>'+
       '<button class="btn primary sm" data-act="remadd" style="height:34px">+ สร้างเตือน</button></div>';
-    h+='<div class="mini" style="margin-top:5px">สร้าง event ใน Calendar วันที่เลือก + เชิญทีมที่ติ๊กด้านบน + เตือนล่วงหน้า 1 วัน (popup + email)</div>';
+    h+='<div class="mini" style="margin-top:5px">ใส่เวลา → นัดเวลานั้น (เตือน 1 วันก่อน + 1 ชม.ก่อน) • เว้นว่าง → เตือนทั้งวัน (เตือน 1 วันก่อน) • เชิญทีมที่ติ๊กด้านบนเข้า event ด้วย</div>';
     h+='</div>';
   }
   box.innerHTML=h;
@@ -2293,15 +2305,16 @@ document.addEventListener("click",e=>{
     const sel=$("#rem-label");let label=sel?sel.value:"";
     if(label==="อื่นๆ (พิมพ์เอง)")label=$("#rem-custom")?$("#rem-custom").value.trim():"";
     const date=$("#rem-date")?$("#rem-date").value:"";
+    const time=$("#rem-time")?$("#rem-time").value:"";
     if(!label){toast("กรอกหัวข้อเตือนก่อน","err");return;}
     if(!date){toast("เลือกวันที่เตือนก่อน","err");return;}
     const inv=collectInviteEmails();
     (async()=>{
       try{
         toast("กำลังสร้างเตือน \""+label+"\" ใน Google Calendar...");
-        const ev=await createReminderEvent(j,label,date,inv);
+        const ev=await createReminderEvent(j,label,date,inv,time);
         if(!j.reminders)j.reminders=[];
-        j.reminders.push({label:label,date:date,eventId:ev.id,link:ev.htmlLink||"",attendees:inv,createdAt:new Date().toISOString()});
+        j.reminders.push({label:label,date:date,time:time||"",eventId:ev.id,link:ev.htmlLink||"",attendees:inv,createdAt:new Date().toISOString()});
         persistJob(j);paintCalendar();
         toast("สร้างเตือน \""+label+"\" สำเร็จ ✓","ok");
       }catch(e){toast("ไม่สำเร็จ: "+(e&&e.message||e),"err");}

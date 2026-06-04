@@ -52,6 +52,8 @@ main{flex:1;min-width:0;display:flex;flex-direction:column;}
   text-decoration:none;display:inline-block;}
 .attach-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px dashed var(--line);font-size:12.5px;}
 .urgent-card{background:var(--card);border:1px solid var(--line);border-left:4px solid #d97706;border-radius:12px;padding:14px 16px;margin-bottom:18px;}
+.dup-warn{background:#fef2f2;border:1px solid #fecaca;border-left:4px solid #dc2626;border-radius:12px;padding:12px 16px;margin-bottom:18px;font-size:13.5px;color:#7f1d1d;line-height:1.9;}
+#syncBadge{cursor:pointer;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;align-items:center;}
 .urgent-head{font-size:14px;font-weight:700;margin-bottom:10px;color:#92400e;display:flex;align-items:center;gap:8px;}
 .urgent-list{display:flex;flex-direction:column;gap:6px;}
 .urgent-row{display:flex;align-items:center;gap:10px;padding:8px 11px;background:#f8fafc;border-radius:8px;cursor:pointer;font-size:12.5px;flex-wrap:wrap;transition:.12s;}
@@ -264,6 +266,7 @@ a{color:var(--brand-d);}
         <div class="sub" id="pageSub"></div>
       </div>
       <div class="right">
+        <span id="syncBadge" data-act="retrysync" style="display:none" title="คลิกเพื่อลองส่งขึ้น Cloud อีกครั้ง"></span>
         <span class="pill off" id="modePill">Local</span>
         <button class="btn sm" data-act="nav" data-view="new">+ บันทึกงานใหม่</button>
       </div>
@@ -403,13 +406,19 @@ function migrateJobPets(job){
     microchipDate:job.microchipDate||"",bloodDate:job.bloodDate||""}];
 }
 function getJob(id){return DB.jobs.find(j=>j.id===id);}
-function nextJobNo(){
-  const n=new Date();
-  const key=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");
+function nextJobNo(dateStr){
+  // ออกเลขตามเดือนของ "วันที่บันทึกงาน" (ถ้าส่งมา) ไม่งั้นใช้เดือนปัจจุบัน
+  let key;
+  if(dateStr&&/^\d{4}-\d{2}/.test(dateStr)){key=dateStr.slice(0,7);}
+  else{const n=new Date();key=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");}
   const prefix="CV-"+key+"-";
   let max=0;
   DB.jobs.forEach(j=>{if(j.jobNo&&j.jobNo.indexOf(prefix)===0){const num=parseInt(j.jobNo.slice(prefix.length),10);if(num>max)max=num;}});
   return prefix+String(max+1).padStart(3,"0");
+}
+function jobNoExists(no,exceptId){
+  no=(no||"").trim();if(!no)return false;
+  return DB.jobs.some(j=>j.id!==exceptId&&(j.jobNo||"").trim()===no);
 }
 function backfillJobNos(){
   let changed=false;
@@ -454,9 +463,92 @@ function cloudErr(e){
   return m;
 }
 async function cloudUpsert(job){
-  try{await fetch(cloudBase(),{method:"POST",headers:Object.assign(cloudHeaders(),{Prefer:"resolution=merge-duplicates,return=minimal"}),
-    body:JSON.stringify([{id:job.id,data:job,updated_at:job.updatedAt}])});}
-  catch(e){console.warn("cloud upsert fail",e);}
+  try{const r=await fetch(cloudBase(),{method:"POST",headers:Object.assign(cloudHeaders(),{Prefer:"resolution=merge-duplicates,return=minimal"}),
+    body:JSON.stringify([{id:job.id,data:job,updated_at:job.updatedAt}])});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    syncOK(job.id);return true;}
+  catch(e){console.warn("cloud upsert fail",e);syncFail(job.id);return false;}
+}
+/* ------- Sync queue: งานที่ส่งขึ้น Cloud ไม่สำเร็จ จะถูกจำไว้และลองใหม่ ------- */
+function syncFail(id){
+  DB.pendingSync=DB.pendingSync||[];
+  if(!DB.pendingSync.includes(id)){DB.pendingSync.push(id);saveLocal();
+    toast("⚠️ ส่งงานขึ้น Cloud ไม่สำเร็จ — เก็บไว้ลองใหม่อัตโนมัติ","err");}
+  paintSyncBadge();
+}
+function syncOK(id){
+  if(DB.pendingSync&&DB.pendingSync.includes(id)){DB.pendingSync=DB.pendingSync.filter(x=>x!==id);saveLocal();}
+  paintSyncBadge();
+}
+async function retryPendingSync(){
+  if(!DB.cloud.enabled||!DB.pendingSync||!DB.pendingSync.length)return;
+  for(const id of [...DB.pendingSync]){
+    const j=getJob(id);
+    if(!j){syncOK(id);continue;}
+    await cloudUpsert(j);
+  }
+}
+function paintSyncBadge(){
+  const el=document.getElementById("syncBadge");if(!el)return;
+  const n=(DB.pendingSync||[]).length;
+  el.style.display=n?"inline-flex":"none";
+  el.textContent="⏳ "+n+" งานยังไม่ขึ้น Cloud — คลิกเพื่อส่งใหม่";
+}
+/* ------- Running number กลางจาก Supabase (atomic — กันเลขซ้ำข้ามเครื่อง) ------- */
+function jobNoPrefix(dateStr){
+  let key;
+  if(dateStr&&/^\d{4}-\d{2}/.test(dateStr)){key=dateStr.slice(0,7);}
+  else{const n=new Date();key=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");}
+  return "CV-"+key+"-";
+}
+async function cloudNextJobNo(dateStr){
+  const prefix=jobNoPrefix(dateStr);
+  let floor=0;
+  DB.jobs.forEach(j=>{if(j.jobNo&&j.jobNo.indexOf(prefix)===0){const num=parseInt(j.jobNo.slice(prefix.length),10);if(num>floor)floor=num;}});
+  const base=(DB.cloud.url||"").trim().replace(/\/+$/,"").replace(/\/rest\/v1.*$/i,"");
+  const r=await fetch(base+"/rest/v1/rpc/next_job_no",{method:"POST",headers:cloudHeaders(),
+    body:JSON.stringify({p_prefix:prefix,p_floor:floor})});
+  if(!r.ok)throw new Error("RPC HTTP "+r.status);
+  const v=await r.json();
+  return prefix+String(v).padStart(3,"0");
+}
+function tmpJobNo(){return "CV-TMP-"+Date.now().toString(36).slice(-6).toUpperCase();}
+async function issueJobNo(dateStr){
+  if(!DB.cloud.enabled)return nextJobNo(dateStr);          // ไม่ใช้ cloud → เลข local (เครื่องเดียว)
+  try{return await cloudNextJobNo(dateStr);}               // ชั้น 1: เลขกลาง atomic
+  catch(e){
+    try{const ok=await cloudPull(true);                    // ชั้น 2: ดึงข้อมูลล่าสุดก่อน แล้วออกเลข local
+      if(ok)return nextJobNo(dateStr);}catch(_){}
+    return tmpJobNo();                                     // ชั้น 2b: ออฟไลน์ → เลขชั่วคราว
+  }
+}
+async function resolveTmpNos(){
+  if(!DB.cloud.enabled)return;
+  const tmps=DB.jobs.filter(j=>/^CV-TMP-/.test(j.jobNo||""));
+  let fixed=0;
+  for(const j of tmps){
+    try{const no=await cloudNextJobNo(j.recordDate||((j.createdAt||"").slice(0,10)));
+      j.jobNo=no;j.updatedAt=new Date().toISOString();saveLocal();cloudUpsert(j);fixed++;}
+    catch(e){}
+  }
+  if(fixed){toast("ออกเลขจริงแทนเลขชั่วคราวแล้ว "+fixed+" งาน ✓","ok");render();}
+}
+/* ------- Watchdog: ตรวจจับเลขที่งานซ้ำ ------- */
+function findDupJobNos(){
+  const m={};
+  DB.jobs.forEach(j=>{const no=(j.jobNo||"").trim();if(!no||/^CV-TMP-/.test(no))return;(m[no]=m[no]||[]).push(j);});
+  return Object.entries(m).filter(([k,v])=>v.length>1);
+}
+async function fixDupJobNos(){
+  const dups=findDupJobNos();let fixed=0;
+  for(const [no,v] of dups){
+    v.sort((a,b)=>(a.createdAt||"").localeCompare(b.createdAt||""));
+    for(const j of v.slice(1)){   // งานที่สร้างก่อนคงเลขเดิม งานหลังได้เลขใหม่
+      j.jobNo=await issueJobNo(j.recordDate||((j.createdAt||"").slice(0,10)));
+      j.updatedAt=new Date().toISOString();saveLocal();cloudUpsert(j);fixed++;
+    }
+  }
+  toast("แก้เลขซ้ำแล้ว "+fixed+" งาน ✓","ok");render();
 }
 async function cloudDelete(id){
   try{await fetch(cloudBase()+"?id=eq."+encodeURIComponent(id),{method:"DELETE",headers:Object.assign(cloudHeaders(),{Prefer:"return=minimal"})});}
@@ -854,7 +946,14 @@ function renderDashboard(){
   const closed=jobs.filter(isClosed).length;
   const prog=total-closed;
   const unpaid=jobs.filter(j=>!j.paid).length;
-  let h=renderUrgentWidget();
+  let h="";
+  const dupNos=findDupJobNos();
+  if(dupNos.length){
+    h+='<div class="dup-warn">⚠️ <b>พบเลขที่งานซ้ำ '+dupNos.length+' เลข:</b> '+
+      dupNos.map(([no,v])=>'<b>'+esc(no)+'</b> ('+v.map(j=>esc(j.customerName||"-")).join(" / ")+')').join(" • ")+
+      ' <button class="btn sm" data-act="fixdupnos" style="margin-left:8px">🔧 แก้อัตโนมัติ</button></div>';
+  }
+  h+=renderUrgentWidget();
   h+='<div class="stat-grid">';
   h+=statCard("b1","งานทั้งหมด",total);
   h+=statCard("b2","กำลังดำเนินการ",prog);
@@ -1204,7 +1303,7 @@ function renderForm(){
   h+='<datalist id="customerList">'+customerNames.map(c=>'<option value="'+esc(c)+'">').join("")+'</datalist>';
   h+='<div class="form-card"><h3>👤 ข้อมูลลูกค้า & งาน'+
      '<span style="margin-left:auto;font-size:12px;font-weight:700;color:var(--brand-d)">'+
-     (editing?("เลขที่งาน: "+esc(j.jobNo||"-")):"เลขที่งาน: ออกอัตโนมัติเมื่อบันทึก")+'</span></h3>';
+     (editing?("เลขที่งาน: "+esc(j.jobNo||"-")):"เลขที่งาน: ออกอัตโนมัติตามเดือนวันที่บันทึก (แก้ได้ด้านล่าง)")+'</span></h3>';
   h+='<div id="custFillBanner" style="display:none;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:13px"></div>';
   h+='<div class="form-grid">';
   h+='<div class="f"><label>ชื่อลูกค้า <span class="req">*</span></label>'+
@@ -1233,6 +1332,12 @@ function renderForm(){
     '<input type="date" id="f-record" value="'+esc(j.recordDate||(editing?"":todayStr()))+'" data-act="recin">'+
     '<div class="be" id="be-record"></div>'+
     '<div class="mini" style="margin-top:1px">คีย์งานย้อนหลังให้แก้วันที่นี้เป็นวันที่ทำงานจริง</div></div>';
+  h+='<div class="f"><label>เลขที่งาน (Job No.)</label>'+
+    '<div style="display:flex;gap:6px;align-items:center">'+
+    '<input type="text" id="f-jobno" value="'+esc(j.jobNo||"")+'" placeholder="'+(editing?"":"เว้นว่าง = ออกอัตโนมัติตามเดือนวันที่บันทึก")+'" style="flex:1" autocomplete="off">'+
+    '<button type="button" class="btn sm" data-act="suggestjobno">เลขถัดไป</button>'+
+    '</div>'+
+    '<div class="mini" style="margin-top:1px">แก้เองได้ เช่น ย้ายงานไปเดือนก่อน • กด "เลขถัดไป" เพื่อเติมเลขว่างถัดไปของเดือนตามวันที่บันทึก • ห้ามซ้ำกับงานอื่น</div></div>';
   h+='<datalist id="assigneeList">'+[...new Set(DB.jobs.map(jb=>jb.assignee).filter(x=>x))].map(a=>'<option value="'+esc(a)+'">').join("")+'</datalist>';
   h+='<div class="f"><label>👤 ผู้รับผิดชอบงาน</label>'+
     '<input type="text" id="f-assignee" list="assigneeList" value="'+esc(j.assignee||"")+'" placeholder="ชื่อคนที่ดูแลงานนี้">'+
@@ -1698,8 +1803,11 @@ function refreshAllVax(){
 function readFormJob(){
   const dir=getDir();
   const jtype=$("#f-jtype").value;
+  const recDate=($("#f-record")&&$("#f-record").value)||todayStr();
+  const manualNo=$("#f-jobno")?$("#f-jobno").value.trim():"";
   const job=STATE.editId?Object.assign({},getJob(STATE.editId)):{id:uid(),createdAt:new Date().toISOString()};
-  if(!STATE.editId&&!job.jobNo)job.jobNo=nextJobNo();
+  if(manualNo)job.jobNo=manualNo;                       // VP พิมพ์เลขเอง → ใช้เลขนั้น
+  // งานใหม่ที่ไม่พิมพ์เลขเอง → ออกเลขแบบ async ใน saveJobFromForm (เลขกลางจาก Cloud กันซ้ำ)
   const prevType=job.jobType;
   job.customerName=$("#f-cname").value.trim();
   job.customerPhone=$("#f-cphone").value.trim();
@@ -1718,7 +1826,7 @@ function readFormJob(){
   job.jobType=jtype;
   job.vaccineDir=dir;
   job.travelDate=$("#f-travel").value;
-  job.recordDate=($("#f-record")&&$("#f-record").value)||todayStr();
+  job.recordDate=recDate;
   job.assignee=$("#f-assignee")?$("#f-assignee").value.trim():"";
   const payR=document.querySelector('input[name=paystat]:checked');
   job.paid=payR?payR.value==="pay":false;
@@ -1954,12 +2062,15 @@ document.addEventListener("click",e=>{
   else if(act==="addcost"){formCosts.push({cat:"",amount:"",note:""});paintCosts();refreshFinance();}
   else if(act==="rmcost"){formCosts.splice(+el.dataset.i,1);paintCosts();refreshFinance();}
   else if(act==="savejob"){saveJobFromForm();}
+  else if(act==="suggestjobno"){const rd=$("#f-record")?$("#f-record").value:"";const inp=$("#f-jobno");if(inp){inp.value=nextJobNo(rd);inp.focus();}toast("เติมเลขถัดไปของเดือนแล้ว — ตรวจก่อนบันทึก","ok");}
   else if(act==="export"){doExport();}
   else if(act==="excel"){doExportExcel();}
   else if(act==="csv"){doExportCSV();}
   else if(act==="importbtn"){$("#importFile").click();}
   else if(act==="cloud-save"){cloudSave();}
   else if(act==="cloud-pull"){cloudPull(false).then(()=>render());}
+  else if(act==="fixdupnos"){if(confirm("แก้เลขที่งานซ้ำอัตโนมัติ? (งานที่สร้างก่อนคงเลขเดิม งานที่สร้างทีหลังได้เลขใหม่)"))fixDupJobNos();}
+  else if(act==="retrysync"){toast("กำลังลองส่งขึ้น Cloud อีกครั้ง...");retryPendingSync().then(()=>{const n=(DB.pendingSync||[]).length;toast(n?("ยังเหลือ "+n+" งานที่ส่งไม่สำเร็จ"):"ส่งขึ้น Cloud ครบแล้ว ✓",n?"err":"ok");});}
   else if(act==="cloud-push"){cloudPush();}
   else if(act==="cloud-off"){DB.cloud.enabled=false;saveLocal();toast("ตัดการเชื่อมต่อ Cloud แล้ว");render();}
   else if(act==="drive-save"){driveSave();}
@@ -2145,12 +2256,26 @@ function toggleStep(id,kind,idx){
   j.checklist[kind][idx]=c;
   persistJob(j);render();
 }
-function saveJobFromForm(){
+let SAVING_JOB=false; // กันกดบันทึกซ้ำตอนรอออกเลข
+async function saveJobFromForm(){
+  if(SAVING_JOB)return;
   if(!$("#f-cname").value.trim()){toast("กรุณากรอกชื่อลูกค้า","err");$("#f-cname").focus();return;}
-  const job=readFormJob();
-  persistJob(job);
-  toast(STATE.editId?"อัปเดตงานแล้ว":"บันทึกงานใหม่แล้ว","ok");
-  STATE.editId=null;STATE.dupFrom=null;STATE.view="job:"+job.jobType;STATE.filters={};render();window.scrollTo(0,0);
+  const manualNo=$("#f-jobno")?$("#f-jobno").value.trim():"";
+  if(manualNo&&jobNoExists(manualNo,STATE.editId)){
+    toast("เลขที่งาน "+manualNo+" ซ้ำกับงานอื่น — แก้ก่อนบันทึก","err");
+    if($("#f-jobno"))$("#f-jobno").focus();return;
+  }
+  SAVING_JOB=true;
+  try{
+    const job=readFormJob();
+    if(!job.jobNo){
+      job.jobNo=await issueJobNo(job.recordDate);
+      if(/^CV-TMP-/.test(job.jobNo))toast("ออฟไลน์ — ใช้เลขชั่วคราว "+job.jobNo+" ระบบจะออกเลขจริงให้อัตโนมัติเมื่อเชื่อม Cloud ได้","err");
+    }
+    persistJob(job);
+    toast(STATE.editId?"อัปเดตงานแล้ว":"บันทึกงานใหม่แล้ว ("+job.jobNo+")","ok");
+    STATE.editId=null;STATE.dupFrom=null;STATE.view="job:"+job.jobType;STATE.filters={};render();window.scrollTo(0,0);
+  }finally{SAVING_JOB=false;}
 }
 function doExport(){
   const blob=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});
@@ -2742,7 +2867,8 @@ function generateReceipt(id){
 loadLocal();
 backfillJobNos();
 render();
-if(DB.cloud.enabled){cloudPull(true).then(ok=>{if(ok){backfillJobNos();render();}});}
+paintSyncBadge();
+if(DB.cloud.enabled){cloudPull(true).then(ok=>{if(ok){backfillJobNos();render();resolveTmpNos();retryPendingSync();}});}
 startDriveAutoRefresh();
 </script>
 </body>

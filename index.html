@@ -276,6 +276,7 @@ a{color:var(--brand-d);}
         <button class="btn sm" data-act="nav" data-view="new">+ บันทึกงานใหม่</button>
       </div>
     </div>
+    <div id="globalAlert"></div>
     <div class="content" id="content"></div>
   </main>
 </div>
@@ -283,6 +284,7 @@ a{color:var(--brand-d);}
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 "use strict";
+const BUILD_VERSION="2026-06-07b"; // อัปเดตทุกครั้งที่ deploy — ใช้เตือนเครื่องที่เปิดหน้าเก่าค้าง
 /* ============================ CONFIG ============================ */
 const JOB_TYPES = {
   export_permit:{label:"Export Permit",icon:"📤",dir:"export",
@@ -1047,6 +1049,7 @@ function render(){
   renderNav();
   $("#modePill").className="pill "+(DB.cloud.enabled?"on":"off");
   $("#modePill").textContent=DB.cloud.enabled?"☁ Cloud Sync":"💾 Local";
+  paintGlobalDupAlert();
   const v=STATE.view;
   if(v==="dashboard"){setTitle("ภาพรวมทั้งหมด","สรุปสถานะงานทุกประเภทในที่เดียว");renderDashboard();}
   else if(v==="finance"){setTitle("ภาพรวมการเงิน","สรุปยอดเรียกเก็บ ต้นทุน และกำไรสุทธิ");renderFinanceDashboard();}
@@ -1056,6 +1059,15 @@ function render(){
     setTitle(t.icon+" "+t.label,"จัดการ checklist และสถานะของงานประเภทนี้");renderJobTab(k);}
 }
 function setTitle(t,s){$("#pageTitle").textContent=t;$("#pageSub").textContent=s||"";}
+/* Banner เตือนเลขซ้ำ — โชว์ทุกหน้า (ไม่ใช่แค่ภาพรวม) */
+function paintGlobalDupAlert(){
+  const box=document.getElementById("globalAlert");if(!box)return;
+  const dupNos=findDupJobNos();
+  if(!dupNos.length){box.innerHTML="";return;}
+  box.innerHTML='<div class="dup-warn" style="margin:14px 26px 0">⚠️ <b>พบเลขที่งานซ้ำ '+dupNos.length+' เลข:</b> '+
+    dupNos.map(([no,v])=>'<b>'+esc(no)+'</b> ('+v.map(j=>esc(j.customerName||"-")).join(" / ")+')').join(" • ")+
+    ' <button class="btn sm" data-act="fixdupnos" style="margin-left:8px">🔧 แก้อัตโนมัติ</button></div>';
+}
 
 /* ============================ RENDER: DASHBOARD ============================ */
 function renderDashboard(){
@@ -2474,6 +2486,16 @@ async function saveJobFromForm(){
     if(!job.jobNo){
       job.jobNo=await issueJobNo(job.recordDate);
       if(/^CV-TMP-/.test(job.jobNo))toast("ออฟไลน์ — ใช้เลขชั่วคราว "+job.jobNo+" ระบบจะออกเลขจริงให้อัตโนมัติเมื่อเชื่อม Cloud ได้","err");
+      // ตาข่ายสุดท้าย: ดึง cloud ล่าสุดมาเช็คอีกรอบก่อนบันทึก เผื่อมีเครื่องอื่นเพิ่งจองเลขนี้
+      if(DB.cloud.enabled&&!/^CV-TMP-/.test(job.jobNo)){
+        try{await cloudPull(true);
+          if(jobNoExists(job.jobNo,job.id)){
+            const fresh=await issueJobNo(job.recordDate);
+            toast("เลข "+job.jobNo+" เพิ่งถูกใช้โดยเครื่องอื่น — เปลี่ยนเป็น "+fresh+" ให้อัตโนมัติ","ok");
+            job.jobNo=fresh;
+          }
+        }catch(e){}
+      }
     }
     persistJob(job);
     toast(STATE.editId?"อัปเดตงานแล้ว":"บันทึกงานใหม่แล้ว ("+job.jobNo+")","ok");
@@ -3087,6 +3109,23 @@ function openHashJob(){
 }
 openHashJob();
 if(DB.cloud.enabled){cloudPull(true).then(ok=>{if(ok){backfillJobNos();if(!openHashJob()&&STATE.view!=="new")render();resolveTmpNos();retryPendingSync();}});}
+/* ------- Version beacon: เตือนเครื่องที่เปิดหน้าเก่าค้างให้ refresh ------- */
+function checkBuildVersion(){
+  if(!DB.cloud.enabled)return;
+  const base=(DB.cloud.url||"").trim().replace(/\/+$/,"").replace(/\/rest\/v1.*$/i,"");
+  // อ่าน build ล่าสุดที่เครื่องอื่นบันทึกไว้ (เก็บใน localStorage ร่วมกับ cloud meta ผ่าน job_counters prefix พิเศษ)
+  fetch(base+"/rest/v1/rpc/get_build",{method:"POST",headers:cloudHeaders(),body:"{}"})
+    .then(r=>r.ok?r.json():null)
+    .then(latest=>{
+      if(latest&&latest>BUILD_VERSION){
+        const bar=document.getElementById("globalAlert");
+        if(bar)bar.innerHTML='<div class="dup-warn" style="margin:14px 26px 0;border-left-color:#2563eb;background:#eff6ff;color:#1e3a8a">🔄 <b>มีเวอร์ชันใหม่กว่า</b> ('+esc(latest)+') — หน้านี้เป็นเวอร์ชันเก่า ('+BUILD_VERSION+') กรุณารีเฟรชหน้า (กดค้างปุ่มรีโหลด) เพื่อใช้ระบบกันเลขซ้ำล่าสุด <button class="btn sm" onclick="location.reload(true)" style="margin-left:8px">รีเฟรชเลย</button></div>'+bar.innerHTML;
+      }
+    }).catch(()=>{});
+  // บันทึก build ของเครื่องนี้ขึ้น cloud (ถ้าใหม่กว่า)
+  fetch(base+"/rest/v1/rpc/set_build",{method:"POST",headers:cloudHeaders(),body:JSON.stringify({p_build:BUILD_VERSION})}).catch(()=>{});
+}
+checkBuildVersion();
 /* auto sync: ดึงจาก cloud ทุก 5 นาที (เฉพาะตอนไม่ได้เปิดฟอร์มอยู่ — กันข้อมูลที่กำลังคีย์หาย) */
 setInterval(function(){
   if(DB.cloud.enabled&&document.visibilityState==="visible"&&STATE.view!=="new"){

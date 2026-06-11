@@ -3137,3 +3137,8 @@ startDriveAutoRefresh();
 </script>
 </body>
 </html>
+
+<script>
+/* Convey deep-link patch: open job via #job=<id> */
+(function(){function go(){var m=(location.hash||'').match(/[#&]job=([^&]+)/);if(!m)return;var id=decodeURIComponent(m[1]);if(typeof getJob!=='function'||typeof render!=='function'||typeof STATE==='undefined'){return setTimeout(go,300);}var t=0;(function find(){var job=getJob(id);if(!job){if(t++<25)return setTimeout(find,300);return;}STATE.editId=job.id;STATE.view='new';render();window.scrollTo(0,0);})();}window.addEventListener('load',function(){setTimeout(go,200);});window.addEventListener('hashchange',go);})();
+</script>

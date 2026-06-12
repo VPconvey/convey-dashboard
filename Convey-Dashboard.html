@@ -453,15 +453,26 @@ function migrateJobPets(job){
     microchipDate:job.microchipDate||"",bloodDate:job.bloodDate||""}];
 }
 function getJob(id){return DB.jobs.find(j=>j.id===id);}
-function nextJobNo(dateStr,jobType){
-  // ออกเลขตามเดือนของ "วันที่บันทึกงาน" (ถ้าส่งมา) ไม่งั้นใช้เดือนปัจจุบัน + แยกตามประเภทงาน
-  let key;
-  if(dateStr&&/^\d{4}-\d{2}/.test(dateStr)){key=dateStr.slice(0,7);}
-  else{const n=new Date();key=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");}
-  const prefix=jobType?("CV-"+jobTypeCode(jobType)+"-"+key+"-"):("CV-"+key+"-");
+function jobMonthKey(dateStr){
+  if(dateStr&&/^\d{4}-\d{2}/.test(dateStr))return dateStr.slice(0,7);
+  const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");
+}
+/* เลขรันต่อเนื่อง "ร่วมกันทั้งเดือน" (ทุกประเภทใช้ลำดับเดียวกัน) — รหัสประเภทเป็นแค่ส่วนแสดงผลข้างหน้า
+   หาเลขสูงสุดของเดือน รองรับทั้งเลขเก่า CV-2026-06-053 และเลขใหม่ CV-EP-2026-06-054 */
+function jobMonthMaxNo(dateStr){
+  const key=jobMonthKey(dateStr);
+  const re=new RegExp("^CV-(?:[A-Z]{2}-)?"+key+"-(\\d+)$");
   let max=0;
-  DB.jobs.forEach(j=>{if(j.jobNo&&j.jobNo.indexOf(prefix)===0){const num=parseInt(j.jobNo.slice(prefix.length),10);if(num>max)max=num;}});
-  return prefix+String(max+1).padStart(3,"0");
+  DB.jobs.forEach(j=>{const m=(j.jobNo||"").trim().match(re);if(m){const n=parseInt(m[1],10);if(n>max)max=n;}});
+  return max;
+}
+/* ประกอบเลขแสดงผล: มีประเภท → CV-EP-2026-06-054 / ไม่มี → CV-2026-06-054 (เผื่อ legacy) */
+function composeJobNo(dateStr,jobType,num){
+  const key=jobMonthKey(dateStr);const nn=String(num).padStart(3,"0");
+  return jobType?("CV-"+jobTypeCode(jobType)+"-"+key+"-"+nn):("CV-"+key+"-"+nn);
+}
+function nextJobNo(dateStr,jobType){
+  return composeJobNo(dateStr,jobType,jobMonthMaxNo(dateStr)+1);
 }
 function jobNoExists(no,exceptId){
   no=(no||"").trim();if(!no)return false;
@@ -474,12 +485,8 @@ function backfillJobNos(){
   if(need.length){
     need.sort((a,b)=>(a.createdAt||"").localeCompare(b.createdAt||""));
     need.forEach(j=>{
-      const d=j.createdAt?new Date(j.createdAt):new Date();
-      const key=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
-      const prefix="CV-"+key+"-";
-      let max=0;
-      DB.jobs.forEach(x=>{if(x.jobNo&&x.jobNo.indexOf(prefix)===0){const num=parseInt(x.jobNo.slice(prefix.length),10);if(num>max)max=num;}});
-      j.jobNo=prefix+String(max+1).padStart(3,"0");
+      // เลขรันต่อเนื่องรายเดือน + แปะรหัสประเภท (รองรับทั้งเลขเก่า/ใหม่ผ่าน jobMonthMaxNo)
+      j.jobNo=nextJobNo(j.recordDate||(j.createdAt?j.createdAt.slice(0,10):todayStr()),j.jobType);
     });
     changed=true;
   }
@@ -541,23 +548,19 @@ function paintSyncBadge(){
   el.style.display=n?"inline-flex":"none";
   el.textContent="⏳ "+n+" งานยังไม่ขึ้น Cloud — คลิกเพื่อส่งใหม่";
 }
-/* ------- Running number กลางจาก Supabase (atomic — กันเลขซ้ำข้ามเครื่อง) ------- */
-function jobNoPrefix(dateStr,jobType){
-  let key;
-  if(dateStr&&/^\d{4}-\d{2}/.test(dateStr)){key=dateStr.slice(0,7);}
-  else{const n=new Date();key=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");}
-  return jobType?("CV-"+jobTypeCode(jobType)+"-"+key+"-"):("CV-"+key+"-");
-}
+/* ------- Running number กลางจาก Supabase (atomic — กันเลขซ้ำข้ามเครื่อง) -------
+   counter ใช้ key "รายเดือน" (CV-2026-06-) ร่วมกันทุกประเภท → เลขรันต่อเนื่องไม่รีเซ็ต
+   รหัสประเภท (EP/VX/...) เป็นแค่ส่วนแสดงผลข้างหน้า ไม่แยก counter */
+function jobNoCounterPrefix(dateStr){return "CV-"+jobMonthKey(dateStr)+"-";}
 async function cloudNextJobNo(dateStr,jobType){
-  const prefix=jobNoPrefix(dateStr,jobType);
-  let floor=0;
-  DB.jobs.forEach(j=>{if(j.jobNo&&j.jobNo.indexOf(prefix)===0){const num=parseInt(j.jobNo.slice(prefix.length),10);if(num>floor)floor=num;}});
+  const counterPrefix=jobNoCounterPrefix(dateStr);       // เดือนอย่างเดียว → counter ร่วม
+  const floor=jobMonthMaxNo(dateStr);                    // กัน counter ตกหลังข้อมูลจริง (นับทั้งเลขเก่า+ใหม่ในเดือน)
   const base=(DB.cloud.url||"").trim().replace(/\/+$/,"").replace(/\/rest\/v1.*$/i,"");
   const r=await fetch(base+"/rest/v1/rpc/next_job_no",{method:"POST",headers:cloudHeaders(),
-    body:JSON.stringify({p_prefix:prefix,p_floor:floor})});
+    body:JSON.stringify({p_prefix:counterPrefix,p_floor:floor})});
   if(!r.ok)throw new Error("RPC HTTP "+r.status);
   const v=await r.json();
-  return prefix+String(v).padStart(3,"0");
+  return composeJobNo(dateStr,jobType,v);                // ประกอบ CV-EP-2026-06-054
 }
 function tmpJobNo(){return "CV-TMP-"+Date.now().toString(36).slice(-6).toUpperCase();}
 async function issueJobNo(dateStr,jobType){

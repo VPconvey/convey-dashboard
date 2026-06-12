@@ -54,6 +54,7 @@ main{flex:1;min-width:0;display:flex;flex-direction:column;}
 .urgent-card{background:var(--card);border:1px solid var(--line);border-left:4px solid #d97706;border-radius:12px;padding:14px 16px;margin-bottom:18px;}
 .dup-warn{background:#fef2f2;border:1px solid #fecaca;border-left:4px solid #dc2626;border-radius:12px;padding:12px 16px;margin-bottom:18px;font-size:13.5px;color:#7f1d1d;line-height:1.9;}
 .chip-dup{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:7px 10px;margin-top:5px;font-size:12px;color:#92400e;line-height:1.8;}
+.chip-info{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:7px 10px;margin-top:5px;font-size:12px;color:#1e40af;line-height:1.8;}
 .month-bar{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:14px;}
 .month-bar label{font-size:13px;font-weight:700;}
 .month-bar select{padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;font-weight:600;background:#fff;}
@@ -284,7 +285,7 @@ a{color:var(--brand-d);}
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 "use strict";
-const BUILD_VERSION="2026-06-07b"; // อัปเดตทุกครั้งที่ deploy — ใช้เตือนเครื่องที่เปิดหน้าเก่าค้าง
+const BUILD_VERSION="2026-06-11a"; // อัปเดตทุกครั้งที่ deploy — ใช้เตือนเครื่องที่เปิดหน้าเก่าค้าง
 /* ============================ CONFIG ============================ */
 const JOB_TYPES = {
   export_permit:{label:"Export Permit",icon:"📤",dir:"export",
@@ -313,6 +314,9 @@ const JOB_TYPES = {
     steps:["รับรายละเอียดงาน","เสนอราคา","เก็บเงิน","ปิดจ๊อบ"]}
 };
 const TYPE_ORDER=["export_permit","export_cargo","import_permit","import_cargo","rabies_titer","vaccine_book","transport","other"];
+/* รหัสประเภทงานสำหรับเลขรัน (CV-EP-2026-06-001) — แยก counter ต่อประเภทต่อเดือน */
+const TYPE_CODE={export_permit:"EP",export_cargo:"EC",import_permit:"IP",import_cargo:"IC",rabies_titer:"RT",vaccine_book:"VX",transport:"TP",other:"OT"};
+function jobTypeCode(t){return TYPE_CODE[t]||"OT";}
 const VAX_GROUPS={combined:"วัคซีนรวม",lepto:"วัคซีนป้องกันโรคฉี่หนู (Leptospirosis)",rabies:"วัคซีนป้องกันโรคพิษสุนัขบ้า (Rabies)"};
 const TH_MON=["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
 const COUNTRIES=["ไทย (Thailand)","จีน (China)","สหรัฐอเมริกา (USA)","สหราชอาณาจักร (United Kingdom)","ออสเตรเลีย (Australia)","นิวซีแลนด์ (New Zealand)","ญี่ปุ่น (Japan)","เกาหลีใต้ (South Korea)","สิงคโปร์ (Singapore)","มาเลเซีย (Malaysia)","ฮ่องกง (Hong Kong)","ไต้หวัน (Taiwan)","เยอรมนี (Germany)","ฝรั่งเศส (France)","เนเธอร์แลนด์ (Netherlands)","สวิตเซอร์แลนด์ (Switzerland)","แคนาดา (Canada)","อินเดีย (India)","สหรัฐอาหรับเอมิเรตส์ (UAE)","กาตาร์ (Qatar)","เวียดนาม (Vietnam)","อินโดนีเซีย (Indonesia)","ฟิลิปปินส์ (Philippines)","อิตาลี (Italy)","สเปน (Spain)","สวีเดน (Sweden)","นอร์เวย์ (Norway)","เดนมาร์ก (Denmark)","เบลเยียม (Belgium)","ออสเตรีย (Austria)","ไอร์แลนด์ (Ireland)","ฟินแลนด์ (Finland)","โปแลนด์ (Poland)","สาธารณรัฐเช็ก (Czech Republic)","โปรตุเกส (Portugal)","กรีซ (Greece)","ฮังการี (Hungary)","โรมาเนีย (Romania)","ลักเซมเบิร์ก (Luxembourg)","ไอซ์แลนด์ (Iceland)","ตุรกี (Turkey)","อิสราเอล (Israel)","ซาอุดีอาระเบีย (Saudi Arabia)","บาห์เรน (Bahrain)","คูเวต (Kuwait)","โอมาน (Oman)","อียิปต์ (Egypt)","แอฟริกาใต้ (South Africa)","เคนยา (Kenya)","บราซิล (Brazil)","อาร์เจนตินา (Argentina)","ชิลี (Chile)","เม็กซิโก (Mexico)","กัมพูชา (Cambodia)","ลาว (Laos)","เมียนมา (Myanmar)","บังคลาเทศ (Bangladesh)","ปากีสถาน (Pakistan)","ศรีลังกา (Sri Lanka)","มาเก๊า (Macau)","มัลดีฟส์ (Maldives)","รัสเซีย (Russia)"];
@@ -449,15 +453,26 @@ function migrateJobPets(job){
     microchipDate:job.microchipDate||"",bloodDate:job.bloodDate||""}];
 }
 function getJob(id){return DB.jobs.find(j=>j.id===id);}
-function nextJobNo(dateStr){
-  // ออกเลขตามเดือนของ "วันที่บันทึกงาน" (ถ้าส่งมา) ไม่งั้นใช้เดือนปัจจุบัน
-  let key;
-  if(dateStr&&/^\d{4}-\d{2}/.test(dateStr)){key=dateStr.slice(0,7);}
-  else{const n=new Date();key=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");}
-  const prefix="CV-"+key+"-";
+function jobMonthKey(dateStr){
+  if(dateStr&&/^\d{4}-\d{2}/.test(dateStr))return dateStr.slice(0,7);
+  const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");
+}
+/* เลขรันต่อเนื่อง "ร่วมกันทั้งเดือน" (ทุกประเภทใช้ลำดับเดียวกัน) — รหัสประเภทเป็นแค่ส่วนแสดงผลข้างหน้า
+   หาเลขสูงสุดของเดือน รองรับทั้งเลขเก่า CV-2026-06-053 และเลขใหม่ CV-EP-2026-06-054 */
+function jobMonthMaxNo(dateStr){
+  const key=jobMonthKey(dateStr);
+  const re=new RegExp("^CV-(?:[A-Z]{2}-)?"+key+"-(\\d+)$");
   let max=0;
-  DB.jobs.forEach(j=>{if(j.jobNo&&j.jobNo.indexOf(prefix)===0){const num=parseInt(j.jobNo.slice(prefix.length),10);if(num>max)max=num;}});
-  return prefix+String(max+1).padStart(3,"0");
+  DB.jobs.forEach(j=>{const m=(j.jobNo||"").trim().match(re);if(m){const n=parseInt(m[1],10);if(n>max)max=n;}});
+  return max;
+}
+/* ประกอบเลขแสดงผล: มีประเภท → CV-EP-2026-06-054 / ไม่มี → CV-2026-06-054 (เผื่อ legacy) */
+function composeJobNo(dateStr,jobType,num){
+  const key=jobMonthKey(dateStr);const nn=String(num).padStart(3,"0");
+  return jobType?("CV-"+jobTypeCode(jobType)+"-"+key+"-"+nn):("CV-"+key+"-"+nn);
+}
+function nextJobNo(dateStr,jobType){
+  return composeJobNo(dateStr,jobType,jobMonthMaxNo(dateStr)+1);
 }
 function jobNoExists(no,exceptId){
   no=(no||"").trim();if(!no)return false;
@@ -470,12 +485,8 @@ function backfillJobNos(){
   if(need.length){
     need.sort((a,b)=>(a.createdAt||"").localeCompare(b.createdAt||""));
     need.forEach(j=>{
-      const d=j.createdAt?new Date(j.createdAt):new Date();
-      const key=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
-      const prefix="CV-"+key+"-";
-      let max=0;
-      DB.jobs.forEach(x=>{if(x.jobNo&&x.jobNo.indexOf(prefix)===0){const num=parseInt(x.jobNo.slice(prefix.length),10);if(num>max)max=num;}});
-      j.jobNo=prefix+String(max+1).padStart(3,"0");
+      // เลขรันต่อเนื่องรายเดือน + แปะรหัสประเภท (รองรับทั้งเลขเก่า/ใหม่ผ่าน jobMonthMaxNo)
+      j.jobNo=nextJobNo(j.recordDate||(j.createdAt?j.createdAt.slice(0,10):todayStr()),j.jobType);
     });
     changed=true;
   }
@@ -537,31 +548,27 @@ function paintSyncBadge(){
   el.style.display=n?"inline-flex":"none";
   el.textContent="⏳ "+n+" งานยังไม่ขึ้น Cloud — คลิกเพื่อส่งใหม่";
 }
-/* ------- Running number กลางจาก Supabase (atomic — กันเลขซ้ำข้ามเครื่อง) ------- */
-function jobNoPrefix(dateStr){
-  let key;
-  if(dateStr&&/^\d{4}-\d{2}/.test(dateStr)){key=dateStr.slice(0,7);}
-  else{const n=new Date();key=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");}
-  return "CV-"+key+"-";
-}
-async function cloudNextJobNo(dateStr){
-  const prefix=jobNoPrefix(dateStr);
-  let floor=0;
-  DB.jobs.forEach(j=>{if(j.jobNo&&j.jobNo.indexOf(prefix)===0){const num=parseInt(j.jobNo.slice(prefix.length),10);if(num>floor)floor=num;}});
+/* ------- Running number กลางจาก Supabase (atomic — กันเลขซ้ำข้ามเครื่อง) -------
+   counter ใช้ key "รายเดือน" (CV-2026-06-) ร่วมกันทุกประเภท → เลขรันต่อเนื่องไม่รีเซ็ต
+   รหัสประเภท (EP/VX/...) เป็นแค่ส่วนแสดงผลข้างหน้า ไม่แยก counter */
+function jobNoCounterPrefix(dateStr){return "CV-"+jobMonthKey(dateStr)+"-";}
+async function cloudNextJobNo(dateStr,jobType){
+  const counterPrefix=jobNoCounterPrefix(dateStr);       // เดือนอย่างเดียว → counter ร่วม
+  const floor=jobMonthMaxNo(dateStr);                    // กัน counter ตกหลังข้อมูลจริง (นับทั้งเลขเก่า+ใหม่ในเดือน)
   const base=(DB.cloud.url||"").trim().replace(/\/+$/,"").replace(/\/rest\/v1.*$/i,"");
   const r=await fetch(base+"/rest/v1/rpc/next_job_no",{method:"POST",headers:cloudHeaders(),
-    body:JSON.stringify({p_prefix:prefix,p_floor:floor})});
+    body:JSON.stringify({p_prefix:counterPrefix,p_floor:floor})});
   if(!r.ok)throw new Error("RPC HTTP "+r.status);
   const v=await r.json();
-  return prefix+String(v).padStart(3,"0");
+  return composeJobNo(dateStr,jobType,v);                // ประกอบ CV-EP-2026-06-054
 }
 function tmpJobNo(){return "CV-TMP-"+Date.now().toString(36).slice(-6).toUpperCase();}
-async function issueJobNo(dateStr){
-  if(!DB.cloud.enabled)return nextJobNo(dateStr);          // ไม่ใช้ cloud → เลข local (เครื่องเดียว)
-  try{return await cloudNextJobNo(dateStr);}               // ชั้น 1: เลขกลาง atomic
+async function issueJobNo(dateStr,jobType){
+  if(!DB.cloud.enabled)return nextJobNo(dateStr,jobType);  // ไม่ใช้ cloud → เลข local (เครื่องเดียว)
+  try{return await cloudNextJobNo(dateStr,jobType);}       // ชั้น 1: เลขกลาง atomic
   catch(e){
     try{const ok=await cloudPull(true);                    // ชั้น 2: ดึงข้อมูลล่าสุดก่อน แล้วออกเลข local
-      if(ok)return nextJobNo(dateStr);}catch(_){}
+      if(ok)return nextJobNo(dateStr,jobType);}catch(_){}
     return tmpJobNo();                                     // ชั้น 2b: ออฟไลน์ → เลขชั่วคราว
   }
 }
@@ -570,7 +577,7 @@ async function resolveTmpNos(){
   const tmps=DB.jobs.filter(j=>/^CV-TMP-/.test(j.jobNo||""));
   let fixed=0;
   for(const j of tmps){
-    try{const no=await cloudNextJobNo(j.recordDate||((j.createdAt||"").slice(0,10)));
+    try{const no=await cloudNextJobNo(j.recordDate||((j.createdAt||"").slice(0,10)),j.jobType);
       j.jobNo=no;j.updatedAt=new Date().toISOString();saveLocal();cloudUpsert(j);fixed++;}
     catch(e){}
   }
@@ -587,7 +594,7 @@ async function fixDupJobNos(){
   for(const [no,v] of dups){
     v.sort((a,b)=>(a.createdAt||"").localeCompare(b.createdAt||""));
     for(const j of v.slice(1)){   // งานที่สร้างก่อนคงเลขเดิม งานหลังได้เลขใหม่
-      j.jobNo=await issueJobNo(j.recordDate||((j.createdAt||"").slice(0,10)));
+      j.jobNo=await issueJobNo(j.recordDate||((j.createdAt||"").slice(0,10)),j.jobType);
       j.updatedAt=new Date().toISOString();saveLocal();cloudUpsert(j);fixed++;
     }
   }
@@ -1633,16 +1640,17 @@ function syncPetsFromDOM(){
   });
 }
 /* ------- Microchip duplicate check: ชิพ 1 เบอร์ = สัตว์ 1 ตัว ------- */
+function normChip(s){return (s||"").replace(/\s+/g,"").trim();}  // ตัดช่องว่าง: "900 263..." = "900263..."
 function findChipJobs(chip,exceptJobId){
-  chip=(chip||"").trim();
-  if(!chip)return[];
+  const c=normChip(chip);
+  if(!c)return[];
   const res=[];
   DB.jobs.forEach(j=>{
     if(j.id===exceptJobId)return;
     (j.pets||[]).forEach(p=>{
-      if((p.microchip||"").trim()===chip){
+      if(normChip(p.microchip)===c){
         const t=JOB_TYPES[j.jobType]||{label:j.jobType||"-",icon:""};
-        res.push({jobNo:j.jobNo||"-",customer:j.customerName||"-",type:(t.icon?t.icon+" ":"")+t.label,pet:p.name||"-",closed:isClosed(j)});
+        res.push({jobNo:j.jobNo||"-",customer:j.customerName||"-",type:(t.icon?t.icon+" ":"")+t.label,jobTypeKey:j.jobType,pet:p.name||"-",closed:isClosed(j)});
       }
     });
   });
@@ -1652,19 +1660,28 @@ function paintChipWarn(idx){
   const el=document.getElementById("chipdup-"+idx);if(!el)return;
   const inp=document.getElementById("f-p"+idx+"-microchip");
   const chip=inp?inp.value.trim():"";
-  // ซ้ำกับงานอื่น
+  const curType=$("#f-jtype")?$("#f-jtype").value:"";
+  // ซ้ำกับงานอื่น — แยก "ประเภทเดียวกัน (เสี่ยงคีย์ซ้ำ)" ออกจาก "ต่างประเภท (สัตว์เดิม คนละบริการ = ปกติ)"
   const hits=findChipJobs(chip,STATE.editId);
+  const same=hits.filter(x=>x.jobTypeKey===curType);
+  const diff=hits.filter(x=>x.jobTypeKey!==curType);
   // ซ้ำกันเองในฟอร์มเดียวกัน (คีย์ชิพเดียวกัน 2 ตัว)
-  const selfDup=chip&&formPets.some((p,i)=>i!==idx&&(p.microchip||"").trim()===chip);
-  if(!hits.length&&!selfDup){el.style.display="none";el.innerHTML="";return;}
+  const selfDup=normChip(chip)&&formPets.some((p,i)=>i!==idx&&normChip(p.microchip)===normChip(chip));
+  if(!hits.length&&!selfDup){el.style.display="none";el.innerHTML="";el.className="chip-dup";return;}
   let h="";
-  if(hits.length){
-    h+="⚠️ <b>ชิพนี้มีอยู่แล้วใน:</b><br>"+
-      hits.map(x=>"• <b>"+esc(x.jobNo)+"</b> "+x.type+" — "+esc(x.customer)+" (🐾 "+esc(x.pet)+(x.closed?" • ปิดจ๊อบแล้ว":" • กำลังทำ")+")").join("<br>")+
+  if(same.length){
+    h+="⚠️ <b>ชิพนี้มีงานประเภทเดียวกันอยู่แล้ว — เสี่ยงคีย์ซ้ำ:</b><br>"+
+      same.map(x=>"• <b>"+esc(x.jobNo)+"</b> "+x.type+" — "+esc(x.customer)+" (🐾 "+esc(x.pet)+(x.closed?" • ปิดจ๊อบแล้ว":" • กำลังทำ")+")").join("<br>")+
       "<br>ตรวจสอบก่อนบันทึก ว่าไม่ได้คีย์งานเดิมซ้ำ";
   }
   if(selfDup)h+=(h?"<br>":"")+"⚠️ ชิพนี้ซ้ำกับสัตว์เลี้ยงตัวอื่นในงานเดียวกัน";
-  el.style.display="block";el.innerHTML=h;
+  if(diff.length){
+    h+=(h?"<br>":"")+"ℹ️ <b>สัตว์ตัวนี้มีงานบริการอื่นอยู่</b> (ปกติ — สัตว์ตัวเดียวทำได้หลายบริการ):<br>"+
+      diff.map(x=>"• <b>"+esc(x.jobNo)+"</b> "+x.type+" — "+esc(x.customer)+(x.closed?" • ปิดแล้ว":" • กำลังทำ")).join("<br>");
+  }
+  el.style.display="block";
+  el.className=(same.length||selfDup)?"chip-dup":"chip-info";
+  el.innerHTML=h;
 }
 function petField(idx,prop,lbl,type,val){
   return '<div class="f"><label>'+lbl+'</label><input type="'+type+'" id="f-p'+idx+'-'+prop+'" value="'+esc(val||"")+'" data-act="petin" data-pet="'+idx+'" data-f="'+prop+'"></div>';
@@ -2232,7 +2249,7 @@ document.addEventListener("click",e=>{
   else if(act==="addcost"){formCosts.push({cat:"",amount:"",note:""});paintCosts();refreshFinance();}
   else if(act==="rmcost"){formCosts.splice(+el.dataset.i,1);paintCosts();refreshFinance();}
   else if(act==="savejob"){saveJobFromForm();}
-  else if(act==="suggestjobno"){const rd=$("#f-record")?$("#f-record").value:"";const inp=$("#f-jobno");if(inp){inp.value=nextJobNo(rd);inp.focus();}toast("เติมเลขถัดไปของเดือนแล้ว — ตรวจก่อนบันทึก","ok");}
+  else if(act==="suggestjobno"){const rd=$("#f-record")?$("#f-record").value:"";const jt=$("#f-jtype")?$("#f-jtype").value:"";const inp=$("#f-jobno");if(inp){inp.value=nextJobNo(rd,jt);inp.focus();}toast("เติมเลขถัดไปของประเภทนี้ในเดือนนี้แล้ว — ตรวจก่อนบันทึก","ok");}
   else if(act==="export"){doExport();}
   else if(act==="excel"){doExportExcel();}
   else if(act==="csv"){doExportCSV();}
@@ -2470,27 +2487,28 @@ async function saveJobFromForm(){
   SAVING_JOB=true;
   try{
     const job=readFormJob();
-    // เช็คไมโครชิพซ้ำกับงานอื่น — เตือนให้ยืนยันก่อนบันทึก (ไม่ block เพราะสัตว์ตัวเดียวอยู่หลายงานได้)
+    // เช็คไมโครชิพซ้ำ — เตือน/ยืนยันเฉพาะ "ประเภทงานเดียวกัน" (เสี่ยงคีย์ซ้ำจริง)
+    // ต่างประเภท (เช่น Titer → Export) = สัตว์ตัวเดิมคนละบริการ ถือเป็นปกติ ไม่ต้องถาม
     const chipDups=[];
     (job.pets||[]).forEach(p=>{
-      const hits=findChipJobs(p.microchip,job.id);
-      if(hits.length)chipDups.push({chip:(p.microchip||"").trim(),pet:p.name||"-",hits});
+      const same=findChipJobs(p.microchip,job.id).filter(x=>x.jobTypeKey===job.jobType);
+      if(same.length)chipDups.push({chip:(p.microchip||"").trim(),pet:p.name||"-",hits:same});
     });
     if(chipDups.length){
-      const msg="⚠️ พบหมายเลขไมโครชิพที่มีอยู่ในงานอื่นแล้ว:\n\n"+
+      const msg="⚠️ พบไมโครชิพที่มีงาน 'ประเภทเดียวกัน' อยู่แล้ว (เสี่ยงคีย์ซ้ำ):\n\n"+
         chipDups.map(d=>"🆔 "+d.chip+" ("+d.pet+") อยู่ในงาน:\n"+
           d.hits.map(x=>"   • "+x.jobNo+" — "+x.customer+(x.closed?" (ปิดจ๊อบแล้ว)":" (กำลังทำ)")).join("\n")).join("\n\n")+
-        "\n\nถ้าเป็นสัตว์ตัวเดิมทำงานต่อเนื่อง (เช่น Titer → Export) กด OK เพื่อบันทึกต่อ\nถ้าสงสัยว่าคีย์งานซ้ำ กด Cancel เพื่อกลับไปตรวจสอบ";
+        "\n\nถ้าตั้งใจเปิดงานประเภทเดิมซ้ำ กด OK เพื่อบันทึกต่อ\nถ้าสงสัยว่าคีย์งานซ้ำ กด Cancel เพื่อกลับไปตรวจสอบ";
       if(!confirm(msg))return;
     }
     if(!job.jobNo){
-      job.jobNo=await issueJobNo(job.recordDate);
+      job.jobNo=await issueJobNo(job.recordDate,job.jobType);
       if(/^CV-TMP-/.test(job.jobNo))toast("ออฟไลน์ — ใช้เลขชั่วคราว "+job.jobNo+" ระบบจะออกเลขจริงให้อัตโนมัติเมื่อเชื่อม Cloud ได้","err");
       // ตาข่ายสุดท้าย: ดึง cloud ล่าสุดมาเช็คอีกรอบก่อนบันทึก เผื่อมีเครื่องอื่นเพิ่งจองเลขนี้
       if(DB.cloud.enabled&&!/^CV-TMP-/.test(job.jobNo)){
         try{await cloudPull(true);
           if(jobNoExists(job.jobNo,job.id)){
-            const fresh=await issueJobNo(job.recordDate);
+            const fresh=await issueJobNo(job.recordDate,job.jobType);
             toast("เลข "+job.jobNo+" เพิ่งถูกใช้โดยเครื่องอื่น — เปลี่ยนเป็น "+fresh+" ให้อัตโนมัติ","ok");
             job.jobNo=fresh;
           }
@@ -3137,8 +3155,3 @@ startDriveAutoRefresh();
 </script>
 </body>
 </html>
-
-<script>
-/* Convey deep-link patch: open job via #job=<id> */
-(function(){function go(){var m=(location.hash||'').match(/[#&]job=([^&]+)/);if(!m)return;var id=decodeURIComponent(m[1]);if(typeof getJob!=='function'||typeof render!=='function'||typeof STATE==='undefined'){return setTimeout(go,300);}var t=0;(function find(){var job=getJob(id);if(!job){if(t++<25)return setTimeout(find,300);return;}STATE.editId=job.id;STATE.view='new';render();window.scrollTo(0,0);})();}window.addEventListener('load',function(){setTimeout(go,200);});window.addEventListener('hashchange',go);})();
-</script>

@@ -285,7 +285,7 @@ a{color:var(--brand-d);}
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 "use strict";
-const BUILD_VERSION="2026-06-11a"; // อัปเดตทุกครั้งที่ deploy — ใช้เตือนเครื่องที่เปิดหน้าเก่าค้าง
+const BUILD_VERSION="2026-06-13a"; // อัปเดตทุกครั้งที่ deploy — ใช้เตือนเครื่องที่เปิดหน้าเก่าค้าง
 /* ============================ CONFIG ============================ */
 const JOB_TYPES = {
   export_permit:{label:"Export Permit",icon:"📤",dir:"export",
@@ -350,7 +350,7 @@ const DEFAULT_COMPANY={
 };
 const CURRENCIES=["THB","USD","EUR","GBP","SGD","JPY","CNY","HKD","AUD","MYR"];
 const PAYMENT_METHODS=["โอนเงิน / Bank Transfer","เงินสด / Cash","เช็ค / Cheque","บัตรเครดิต / Credit Card","PayPal","Wise / TransferWise","Other"];
-let DB={jobs:[],cloud:{url:"",key:"",enabled:false},drive:{clientId:"",folderId:"",enabled:false},team:[],costCats:DEFAULT_COST_CATS.slice(),company:Object.assign({},DEFAULT_COMPANY),invSeq:{},rcpSeq:{}};
+let DB={jobs:[],cloud:{url:"",key:"",enabled:false},drive:{clientId:"",folderId:"",enabled:false},team:[],costCats:DEFAULT_COST_CATS.slice(),company:Object.assign({},DEFAULT_COMPANY),invSeq:{},rcpSeq:{},tombstones:{}};
 let STATE={view:"dashboard",editId:null,dupFrom:null,filters:{},
   fMonth:(function(){const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");})()};
 /* ------- จำตำแหน่ง scroll ของตาราง (กันเด้งกลับซ้ายสุดตอนติ๊กสถานะ) ------- */
@@ -440,8 +440,12 @@ function loadLocal(){
     DB.costCats=(Array.isArray(d.costCats)&&d.costCats.length)?d.costCats:DEFAULT_COST_CATS.slice();
     DB.company=Object.assign({},DEFAULT_COMPANY,d.company||{});
     DB.invSeq=(d.invSeq&&typeof d.invSeq==="object")?d.invSeq:{};
-    DB.rcpSeq=(d.rcpSeq&&typeof d.rcpSeq==="object")?d.rcpSeq:{};}}
+    DB.rcpSeq=(d.rcpSeq&&typeof d.rcpSeq==="object")?d.rcpSeq:{};
+    DB.tombstones=(d.tombstones&&typeof d.tombstones==="object")?d.tombstones:{};}}
   catch(e){console.warn("load error",e);}
+  // safety: เผื่อมี tombstone หลุดเข้ามาใน jobs (จาก cloud เก่า) → เอาออก + จดทะเบียนไว้
+  DB.tombstones=DB.tombstones||{};
+  DB.jobs=DB.jobs.filter(j=>{if(j&&j._deleted){DB.tombstones[j.id]=j._deletedAt||j.updatedAt||new Date().toISOString();return false;}return true;});
   DB.jobs.forEach(migrateJobPets);
 }
 function migrateJobPets(job){
@@ -478,16 +482,16 @@ function jobNoExists(no,exceptId){
   no=(no||"").trim();if(!no)return false;
   return DB.jobs.some(j=>j.id!==exceptId&&(j.jobNo||"").trim()===no);
 }
-function backfillJobNos(){
+async function backfillJobNos(){
   let changed=false;
   DB.jobs.forEach(j=>{if(!j.recordDate){j.recordDate=j.createdAt?j.createdAt.slice(0,10):todayStr();changed=true;}});
   const need=DB.jobs.filter(j=>!j.jobNo);
   if(need.length){
     need.sort((a,b)=>(a.createdAt||"").localeCompare(b.createdAt||""));
-    need.forEach(j=>{
-      // เลขรันต่อเนื่องรายเดือน + แปะรหัสประเภท (รองรับทั้งเลขเก่า/ใหม่ผ่าน jobMonthMaxNo)
-      j.jobNo=nextJobNo(j.recordDate||(j.createdAt?j.createdAt.slice(0,10):todayStr()),j.jobType);
-    });
+    for(const j of need){
+      // ใช้ issueJobNo (RPC atomic เมื่อต่อ cloud) กันเลขซ้ำข้ามเครื่อง — fallback เป็นเลข local เมื่อออฟไลน์
+      j.jobNo=await issueJobNo(j.recordDate||(j.createdAt?j.createdAt.slice(0,10):todayStr()),j.jobType);
+    }
     changed=true;
   }
   if(changed)saveLocal();
@@ -500,8 +504,12 @@ function persistJob(job){
   if(DB.cloud.enabled)cloudUpsert(job);
 }
 function deleteJob(id){
-  DB.jobs=DB.jobs.filter(j=>j.id!==id);saveLocal();
-  if(DB.cloud.enabled)cloudDelete(id);
+  const j=getJob(id);
+  const ts=new Date().toISOString();
+  DB.jobs=DB.jobs.filter(x=>x.id!==id);
+  DB.tombstones=DB.tombstones||{};DB.tombstones[id]=ts;   // จำว่าลบแล้ว กันงานฟื้นกลับมาจากเครื่องอื่น
+  saveLocal();
+  if(DB.cloud.enabled)cloudSoftDelete(id,j,ts);            // ส่ง tombstone ขึ้น cloud (ไม่ลบ row ทิ้ง เพื่อให้เครื่องอื่นรู้ว่าถูกลบ)
 }
 
 /* ------- Cloud (Supabase / Postgres SQL) ------- */
@@ -600,29 +608,54 @@ async function fixDupJobNos(){
   }
   toast("แก้เลขซ้ำแล้ว "+fixed+" งาน ✓","ok");render();
 }
-async function cloudDelete(id){
-  try{await fetch(cloudBase()+"?id=eq."+encodeURIComponent(id),{method:"DELETE",headers:Object.assign(cloudHeaders(),{Prefer:"return=minimal"})});}
-  catch(e){console.warn("cloud delete fail",e);}
+/* soft-delete: เขียน tombstone (data._deleted=true) ทับ row เดิม — ไม่ลบ row ทิ้ง
+   เพื่อให้เครื่องอื่น pull เจอแล้วลบงานนั้นตามไปด้วย (กันงานฟื้น) */
+async function cloudSoftDelete(id,job,ts){
+  const data=Object.assign({},job||{id:id},{_deleted:true,_deletedAt:ts,updatedAt:ts});
+  try{const r=await fetch(cloudBase(),{method:"POST",headers:Object.assign(cloudHeaders(),{Prefer:"resolution=merge-duplicates,return=minimal"}),
+    body:JSON.stringify([{id:id,data:data,updated_at:ts}])});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    syncOK(id);return true;}
+  catch(e){console.warn("cloud soft-delete fail",e);syncFail(id);return false;}
 }
 async function cloudPull(silent){
   try{const r=await fetch(cloudBase()+"?select=id,data,updated_at",{headers:cloudHeaders()});
     if(!r.ok)throw new Error("HTTP "+r.status);
-    const rows=await r.json();let added=0,updated=0;
-    rows.forEach(row=>{const j=row.data;if(!j||!j.id)return;migrateJobPets(j);
+    const rows=await r.json();let added=0,updated=0,removed=0;
+    DB.tombstones=DB.tombstones||{};
+    rows.forEach(row=>{const j=row.data;if(!j||!j.id)return;
+      const rTs=row.updated_at||"";
+      // ---- tombstone จาก cloud: งานถูกลบจากเครื่องอื่น ----
+      if(j._deleted){
+        const ex=getJob(j.id);
+        // ลบ local เฉพาะเมื่อ local ไม่ได้ถูกแก้ใหม่กว่าเวลาที่ลบ (ถ้าแก้ใหม่กว่า = ตั้งใจกู้คืน เก็บไว้)
+        if(ex&&(ex.updatedAt||"")<=rTs){DB.jobs=DB.jobs.filter(x=>x.id!==j.id);removed++;}
+        if(!ex||(ex.updatedAt||"")<=rTs)DB.tombstones[j.id]=rTs;
+        return;
+      }
+      migrateJobPets(j);
       const ex=getJob(j.id);
-      if(!ex){DB.jobs.push(j);added++;}
-      else if((row.updated_at||"")>(ex.updatedAt||"")){const i=DB.jobs.findIndex(x=>x.id===j.id);DB.jobs[i]=j;updated++;}});
+      if(!ex){
+        // กันงานฟื้น: ถ้าเรามี tombstone ที่ใหม่กว่า/เท่ากับ row นี้ → ไม่ดึงกลับ
+        if(DB.tombstones[j.id]&&DB.tombstones[j.id]>=rTs)return;
+        DB.jobs.push(j);added++;
+      }
+      else if(rTs>(ex.updatedAt||"")){const i=DB.jobs.findIndex(x=>x.id===j.id);DB.jobs[i]=j;updated++;}});
     saveLocal();
-    if(!silent)toast("ดึงข้อมูลจาก Cloud สำเร็จ — เพิ่ม "+added+" / อัปเดต "+updated,"ok");
+    if(!silent)toast("ดึงข้อมูลจาก Cloud สำเร็จ — เพิ่ม "+added+" / อัปเดต "+updated+(removed?(" / ลบตามเครื่องอื่น "+removed):""),"ok");
     return true;
   }catch(e){if(!silent)toast("ดึงข้อมูล Cloud ไม่สำเร็จ: "+cloudErr(e),"err");return false;}
 }
 async function cloudPush(){
   try{const body=DB.jobs.map(j=>({id:j.id,data:j,updated_at:j.updatedAt||new Date().toISOString()}));
+    // push tombstone ของงานที่ลบไปแล้วด้วย เพื่อให้เครื่องอื่นลบตาม (กันงานฟื้น)
+    Object.entries(DB.tombstones||{}).forEach(([id,ts])=>{
+      if(!getJob(id))body.push({id:id,data:{id:id,_deleted:true,_deletedAt:ts,updatedAt:ts},updated_at:ts});
+    });
     const r=await fetch(cloudBase(),{method:"POST",headers:Object.assign(cloudHeaders(),{Prefer:"resolution=merge-duplicates,return=minimal"}),
       body:JSON.stringify(body)});
     if(!r.ok)throw new Error("HTTP "+r.status);
-    toast("ส่งข้อมูลขึ้น Cloud สำเร็จ ("+body.length+" งาน)","ok");return true;
+    toast("ส่งข้อมูลขึ้น Cloud สำเร็จ ("+DB.jobs.length+" งาน)","ok");return true;
   }catch(e){toast("ส่งข้อมูลขึ้น Cloud ไม่สำเร็จ: "+cloudErr(e),"err");return false;}
 }
 
@@ -2515,6 +2548,18 @@ async function saveJobFromForm(){
         }catch(e){}
       }
     }
+    // ---- กันบันทึกทับงานที่เครื่องอื่นเพิ่งแก้ (conflict) ----
+    if(DB.cloud.enabled&&STATE.editId){
+      const before=getJob(STATE.editId);const beforeUpd=before?(before.updatedAt||""):"";
+      try{await cloudPull(true);
+        const after=getJob(STATE.editId);
+        if(after&&(after.updatedAt||"")>beforeUpd){
+          if(!confirm("⚠️ งานนี้เพิ่งถูกแก้จากอุปกรณ์อื่น (อัปเดตล่าสุด "+String(after.updatedAt||"").replace("T"," ").slice(0,16)+")\n\nถ้ากดบันทึกต่อ ข้อมูลที่คุณกำลังแก้จะทับของอีกเครื่อง\n\nกด OK = บันทึกทับด้วยข้อมูลของคุณ\nกด Cancel = ยกเลิก (ไปดูเวอร์ชันล่าสุดก่อน)")){
+            render();return;
+          }
+        }
+      }catch(e){}
+    }
     persistJob(job);
     toast(STATE.editId?"อัปเดตงานแล้ว":"บันทึกงานใหม่แล้ว ("+job.jobNo+")","ok");
     STATE.editId=null;STATE.dupFrom=null;STATE.view="job:"+job.jobType;STATE.filters={};render();window.scrollTo(0,0);
@@ -3114,7 +3159,7 @@ function generateReceipt(id){
 
 /* ============================ INIT ============================ */
 loadLocal();
-backfillJobNos();
+if(!DB.cloud.enabled)backfillJobNos();   // โหมด cloud: รอ backfill แบบ atomic หลัง pull (ด้านล่าง)
 render();
 paintSyncBadge();
 /* เปิดงานจาก link ใน Calendar (#job=...) */
@@ -3126,7 +3171,7 @@ function openHashJob(){
   return true;
 }
 openHashJob();
-if(DB.cloud.enabled){cloudPull(true).then(ok=>{if(ok){backfillJobNos();if(!openHashJob()&&STATE.view!=="new")render();resolveTmpNos();retryPendingSync();}});}
+if(DB.cloud.enabled){cloudPull(true).then(async ok=>{if(ok){await backfillJobNos();if(!openHashJob()&&STATE.view!=="new")render();resolveTmpNos();retryPendingSync();}});}
 /* ------- Version beacon: เตือนเครื่องที่เปิดหน้าเก่าค้างให้ refresh ------- */
 function checkBuildVersion(){
   if(!DB.cloud.enabled)return;

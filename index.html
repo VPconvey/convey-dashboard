@@ -75,6 +75,31 @@ main{flex:1;min-width:0;display:flex;flex-direction:column;}
 .urgent-assignee{font-size:11px;color:var(--brand-d);font-weight:600;}
 .urgent-travel{font-size:11px;color:var(--mut);}
 .team-row{display:grid;grid-template-columns:1fr 1.6fr 36px;gap:7px;margin-bottom:6px;}
+/* Job card view */
+.viewtog{display:flex;align-items:center;gap:6px;margin-bottom:12px;}
+.jcard{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:10px;}
+.jcard.closed{opacity:.62;}
+.jcard-head{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;flex-wrap:wrap;border-radius:12px;transition:.12s;}
+.jcard-head:hover{background:#f8fafc;}
+.jc-caret{color:var(--mut);font-size:12px;width:14px;text-align:center;flex:none;}
+.jc-id{min-width:190px;}
+.jc-id b{color:var(--brand-d);}
+.jc-next{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;white-space:nowrap;}
+.jc-actions{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.jcard-foot{padding:0 14px 11px 38px;}
+.jcard-body{border-top:1px solid var(--line);padding:12px 16px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;}
+.jc-sec{font-size:12px;font-weight:700;color:var(--mut);margin-bottom:6px;}
+.ck-row{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:13px;}
+.ck-row.next{background:#eff6ff;border-radius:7px;padding:3px 6px;}
+.ck-row.next .ck-lbl{color:#1e40af;font-weight:700;}
+.ck-row.na .ck-lbl{color:var(--mut);text-decoration:line-through;}
+.ck-dash{width:30px;text-align:center;color:var(--mut);flex:none;}
+.ck-row .dot{flex:none;}
+.ck-lbl{flex:1;min-width:120px;}
+.ck-date{width:118px;}
+.na-btn{font-size:10.5px;color:var(--mut);padding:2px 8px;}
+.dot.na{border-style:dashed;color:var(--mut);background:var(--gray-l);}
+@media (max-width:760px){.jc-actions{margin-left:0;width:100%;}.jc-id{min-width:140px;}.jcard-foot{padding-left:14px;}}
 .btn:hover{background:var(--gray-l);}
 .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff;}
 .btn.primary:hover{background:var(--brand-d);}
@@ -442,10 +467,12 @@ function loadLocal(){
     DB.invSeq=(d.invSeq&&typeof d.invSeq==="object")?d.invSeq:{};
     DB.rcpSeq=(d.rcpSeq&&typeof d.rcpSeq==="object")?d.rcpSeq:{};
     DB.tombstones=(d.tombstones&&typeof d.tombstones==="object")?d.tombstones:{};
-    DB.pendingSync=Array.isArray(d.pendingSync)?d.pendingSync:[];}}
+    DB.pendingSync=Array.isArray(d.pendingSync)?d.pendingSync:[];
+    DB.ui=(d.ui&&typeof d.ui==="object")?d.ui:{};}}
   catch(e){console.warn("load error",e);}
   // safety: เผื่อมี tombstone หลุดเข้ามาใน jobs (จาก cloud เก่า) → เอาออก + จดทะเบียนไว้
   DB.tombstones=DB.tombstones||{};
+  DB.ui=Object.assign({jobView:"card"},DB.ui||{});
   DB.jobs=DB.jobs.filter(j=>{if(j&&j._deleted){DB.tombstones[j.id]=j._deletedAt||j.updatedAt||new Date().toISOString();return false;}return true;});
   DB.jobs.forEach(migrateJobPets);
 }
@@ -1102,9 +1129,18 @@ function jobVaxOverall(job){
 function jobItems(job){const t=JOB_TYPES[job.jobType]||{};return{docs:t.docs||[],steps:t.steps||[]};}
 function progressOf(job){
   const it=jobItems(job);let done=0,total=0;
-  ["docs","steps"].forEach(k=>{it[k].forEach((_,i)=>{total++;const c=job.checklist&&job.checklist[k]&&job.checklist[k][i];if(c&&c.done)done++;});});
+  ["docs","steps"].forEach(k=>{it[k].forEach((_,i)=>{const c=job.checklist&&job.checklist[k]&&job.checklist[k][i];if(c&&c.na)return;total++;if(c&&c.done)done++;});});
   if(isClosed(job))return{done:total,total:total,pct:100};
   return{done,total,pct:total?Math.round(done/total*100):0};
+}
+function nextStep(job){
+  const steps=jobItems(job).steps;
+  for(let i=0;i<steps.length;i++){
+    const c=job.checklist&&job.checklist.steps&&job.checklist.steps[i];
+    if(c&&c.na)continue;
+    if(!(c&&c.done))return{idx:i,label:steps[i]};
+  }
+  return null;
 }
 function isClosed(job){
   const steps=jobItems(job).steps;
@@ -1442,7 +1478,6 @@ function renderJobTab(typeKey){
   h+='</div>';
 
   let list=applyFilters(monthJobs().filter(j=>j.jobType===typeKey),f);
-  list.sort((a,b)=>(b.travelDate||"").localeCompare(a.travelDate||""));
 
   if(!list.length){
     h+='<div class="empty"><div class="big">'+t.icon+'</div>ยังไม่มีงาน '+esc(t.label)+(STATE.fMonth?(' ในเดือน'+monthLabel(STATE.fMonth)):'')+'<br>'+
@@ -1450,6 +1485,25 @@ function renderJobTab(typeKey){
     $("#content").innerHTML=h;return;
   }
 
+  const mode=(DB.ui&&DB.ui.jobView)||"card";
+  h+='<div class="viewtog">'+
+     '<button class="btn sm'+(mode==="card"?" primary":"")+'" data-act="jobview" data-mode="card">🗂 การ์ด</button>'+
+     '<button class="btn sm'+(mode==="table"?" primary":"")+'" data-act="jobview" data-mode="table">📊 ตาราง</button>'+
+     '<span class="mini" style="margin-left:auto">แสดง '+list.length+' งาน</span></div>';
+
+  if(mode==="card"){
+    h+='<div class="hint">💡 คลิกการ์ดเพื่อกางดู checklist • ปุ่ม "ไม่ใช้" ตัดเอกสารที่ไม่เกี่ยวออกจากงานนั้น (ไม่นับใน progress) • งานเรียงตามวันเดินทางใกล้สุดก่อน ปิดจ๊อบแล้วอยู่ล่าง</div>';
+    list.sort((a,b)=>{
+      const ac=isClosed(a)?1:0,bc=isClosed(b)?1:0;
+      if(ac!==bc)return ac-bc;
+      return (a.travelDate||"9999").localeCompare(b.travelDate||"9999");
+    });
+    list.forEach(j=>{h+=jobCardHTML(j);});
+    $("#content").innerHTML=h;
+    return;
+  }
+
+  list.sort((a,b)=>(b.travelDate||"").localeCompare(a.travelDate||""));
   const docs=t.docs||[],steps=t.steps||[];
   h+='<div class="hint">💡 คลิกวงกลมเพื่อเปลี่ยนสถานะ <b>เทา = ยังไม่ทำ</b> → <b style="color:#16a34a">เขียว = ทำแล้ว</b> • ช่องวันที่ใต้ปุ่มใช้ระบุวันที่ของแต่ละขั้นตอน • ตารางเลื่อนซ้าย-ขวาได้</div>';
   h+='<div class="tbl-wrap"><table class="mx"><thead>';
@@ -1491,10 +1545,75 @@ function renderJobTab(typeKey){
 }
 function statusCell(job,kind,idx,extra){
   const c=(job.checklist&&job.checklist[kind]&&job.checklist[kind][idx])||{done:false,date:""};
+  if(c.na)return '<td class="sc '+extra+'">'+
+    '<button class="dot na" data-act="toggle" data-id="'+job.id+'" data-kind="'+kind+'" data-idx="'+idx+'" title="ไม่ใช้กับงานนี้ — คลิกเพื่อเอากลับมาใช้">–</button>'+
+    '<br><span class="mini" style="font-size:10px">ไม่ใช้</span></td>';
   return '<td class="sc '+extra+'">'+
     '<button class="dot'+(c.done?" done":"")+'" data-act="toggle" data-id="'+job.id+'" data-kind="'+kind+'" data-idx="'+idx+'">'+(c.done?"✓":"")+'</button>'+
     '<br><input type="date" class="cd'+(c.date?" has":"")+'" value="'+esc(c.date||"")+'" data-act="setdate" data-id="'+job.id+'" data-kind="'+kind+'" data-idx="'+idx+'" title="ระบุวันที่ทำขั้นตอนนี้">'+
     '</td>';
+}
+function jobCardHTML(j){
+  const t=JOB_TYPES[j.jobType]||{icon:"📋",label:j.jobType||"?"};
+  const p=progressOf(j);
+  const closed=isClosed(j);
+  const exp=STATE.expanded&&STATE.expanded[j.id];
+  const d=parseD(j.travelDate),today=parseD(todayStr());
+  let cls="ok",label="ยังไม่ระบุวันเดินทาง";
+  if(d&&today){
+    const days=daysBetween(d,today);
+    if(days<0){cls="overdue";label="เลย "+Math.abs(days)+" วัน";}
+    else if(days===0){cls="today";label="วันนี้!";}
+    else if(days<=7){cls="warn";label="เหลือ "+days+" วัน";}
+    else if(days<=14){cls="soft";label="เหลือ "+days+" วัน";}
+    else{label="เหลือ "+days+" วัน";}
+  }
+  const ns=closed?null:nextStep(j);
+  let h='<div class="jcard'+(closed?" closed":"")+'">';
+  h+='<div class="jcard-head" data-act="expand" data-id="'+j.id+'">';
+  h+='<span class="jc-caret">'+(exp?"▼":"▶")+'</span>';
+  h+='<div class="jc-id"><b>'+esc(j.jobNo||"-")+'</b>'+
+     '<div class="mini"><b>'+esc(j.customerName||"-")+'</b> • 🐾 '+esc(petsShort(j))+' • '+esc(j.originCountry||"?")+'→'+esc(j.destCountry||"?")+'</div>'+
+     (j.assignee?'<div class="mini" style="color:var(--brand-d);font-weight:600">👤 '+esc(j.assignee)+'</div>':"")+'</div>';
+  h+='<span class="urgent-countdown '+(closed?"ok":cls)+'">'+(closed?"ปิดจ๊อบแล้ว ✓":esc(label))+'</span>';
+  if(d)h+='<span class="mini">'+fmtCE(j.travelDate)+'</span>';
+  if(ns)h+='<span class="jc-next">ถัดไป: '+esc(ns.label)+'</span>';
+  h+='<div class="jc-actions">'+
+     '<button class="btn sm" data-act="paid" data-id="'+j.id+'">'+
+       (j.paid?'<span class="badge bg-paid">จ่ายแล้ว ✓</span>':'<span class="badge bg-unpaid">💰 เก็บค่าใช้จ่าย</span>')+'</button>'+
+     '<button class="btn sm" data-act="closejob" data-id="'+j.id+'">'+(closed?"🔓 เปิดงาน":"🔒 ปิดจ๊อบ")+'</button>'+
+     '<button class="btn sm ghost" data-act="edit" data-id="'+j.id+'" title="แก้ไข">✏️</button>'+
+     '</div>';
+  h+='</div>';
+  h+='<div class="jcard-foot">'+progressBar(p)+'</div>';
+  if(exp){
+    h+='<div class="jcard-body">';
+    const items=jobItems(j);
+    [["docs","📄 เอกสารที่ได้รับ"],["steps","✅ ขั้นตอนการทำงาน"]].forEach(pair=>{
+      const k=pair[0];
+      if(!items[k].length)return;
+      h+='<div><div class="jc-sec">'+pair[1]+'</div>';
+      items[k].forEach((lbl,i)=>{
+        const c=(j.checklist&&j.checklist[k]&&j.checklist[k][i])||{done:false,date:""};
+        if(c.na){
+          h+='<div class="ck-row na"><span class="ck-dash">—</span><span class="ck-lbl">'+esc(lbl)+'</span>'+
+             '<button class="btn sm ghost na-btn" data-act="na" data-id="'+j.id+'" data-kind="'+k+'" data-idx="'+i+'">ใช้เอกสารนี้</button></div>';
+          return;
+        }
+        const isNext=ns&&k==="steps"&&i===ns.idx;
+        h+='<div class="ck-row'+(isNext?" next":"")+'">'+
+           '<button class="dot'+(c.done?" done":"")+'" data-act="toggle" data-id="'+j.id+'" data-kind="'+k+'" data-idx="'+i+'">'+(c.done?"✓":"")+'</button>'+
+           '<span class="ck-lbl">'+(k==="steps"?(i+1)+". ":"")+esc(lbl)+'</span>'+
+           '<input type="date" class="cd ck-date'+(c.date?" has":"")+'" value="'+esc(c.date||"")+'" data-act="setdate" data-id="'+j.id+'" data-kind="'+k+'" data-idx="'+i+'" title="วันที่ทำรายการนี้">'+
+           (k==="docs"?'<button class="btn sm ghost na-btn" data-act="na" data-id="'+j.id+'" data-kind="'+k+'" data-idx="'+i+'" title="เอกสารนี้ไม่ใช้กับงานนี้ — ไม่นับใน progress">ไม่ใช้</button>':"")+
+           '</div>';
+      });
+      h+='</div>';
+    });
+    h+='</div>';
+  }
+  h+='</div>';
+  return h;
 }
 
 /* ============================ RENDER: FORM ============================ */
@@ -2324,6 +2443,22 @@ document.addEventListener("click",e=>{
     render();
   }
   else if(act==="del"){softDeleteJob(el.dataset.id);}
+  else if(act==="jobview"){DB.ui=DB.ui||{};DB.ui.jobView=el.dataset.mode;saveLocal();render();}
+  else if(act==="expand"){
+    STATE.expanded=STATE.expanded||{};
+    STATE.expanded[el.dataset.id]=!STATE.expanded[el.dataset.id];
+    render();
+  }
+  else if(act==="na"){
+    const j=getJob(el.dataset.id);if(!j)return;
+    if(!j.checklist)j.checklist={docs:{},steps:{}};
+    const k=el.dataset.kind;if(!j.checklist[k])j.checklist[k]={};
+    const c=j.checklist[k][+el.dataset.idx]||{done:false,date:""};
+    c.na=!c.na;if(c.na)c.done=false;
+    j.checklist[k][+el.dataset.idx]=c;
+    persistJob(j);render();
+    toast(c.na?"ตัดเอกสารออกจากงานนี้แล้ว (ไม่นับใน progress)":"เอาเอกสารกลับมาใช้แล้ว","ok");
+  }
   else if(act==="addvax"){syncPetsFromDOM();formPets[+el.dataset.pet].vax[el.dataset.grp].push({date:"",expiry:""});renderPets();}
   else if(act==="rmvax"){syncPetsFromDOM();formPets[+el.dataset.pet].vax[el.dataset.grp].splice(+el.dataset.i,1);renderPets();}
   else if(act==="addpet"){syncPetsFromDOM();formPets.push(blankFormPet());renderPets();}
@@ -2554,8 +2689,8 @@ function toggleStep(id,kind,idx){
   if(!j.checklist)j.checklist={docs:{},steps:{}};
   if(!j.checklist[kind])j.checklist[kind]={};
   const c=j.checklist[kind][idx]||{done:false,date:""};
-  c.done=!c.done;
-  if(c.done&&!c.date)c.date=todayStr();
+  if(c.na){c.na=false;c.done=false;}       // เคย mark "ไม่ใช้" → คลิกเพื่อเอากลับมาใช้
+  else{c.done=!c.done;if(c.done&&!c.date)c.date=todayStr();}
   j.checklist[kind][idx]=c;
   persistJob(j);render();
 }

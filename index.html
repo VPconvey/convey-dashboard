@@ -531,26 +531,7 @@ function persistJob(job){
   saveLocal();
   if(DB.cloud.enabled)cloudUpsert(job);
 }
-function deleteJob(id){
-  const j=getJob(id);
-  const ts=new Date().toISOString();
-  DB.jobs=DB.jobs.filter(x=>x.id!==id);
-  DB.tombstones=DB.tombstones||{};DB.tombstones[id]=ts;   // จำว่าลบแล้ว กันงานฟื้นกลับมาจากเครื่องอื่น
-  saveLocal();
-  if(DB.cloud.enabled)cloudSoftDelete(id,j,ts);            // ส่ง tombstone ขึ้น cloud (ไม่ลบ row ทิ้ง เพื่อให้เครื่องอื่นรู้ว่าถูกลบ)
-}
-/* ------- Soft delete + Undo: ลบแล้วมีเวลา 8 วิ กดเลิกทำ ก่อนเขียน tombstone จริง ------- */
-let PENDING_DEL=null;
-function finalizePendingDelete(){
-  if(!PENDING_DEL)return;
-  const pd=PENDING_DEL;PENDING_DEL=null;
-  clearTimeout(pd.timer);if(pd.toastEl&&pd.toastEl.parentNode)pd.toastEl.remove();
-  const ts=new Date().toISOString();
-  DB.jobs=DB.jobs.filter(x=>x.id!==pd.job.id);            // เผื่อ auto-pull ดึงงานกลับมาระหว่างรอ undo
-  DB.tombstones=DB.tombstones||{};DB.tombstones[pd.job.id]=ts;
-  saveLocal();
-  if(DB.cloud.enabled)cloudSoftDelete(pd.job.id,pd.job,ts);
-}
+/* ------- Soft delete + Undo (tombstone-first): ลบจริงทันที crash-safe — undo = กู้คืนงานกลับ ------- */
 function softDeleteJob(id){
   const j=getJob(id);if(!j)return;
   const att=(j.attachments||[]).length;
@@ -559,20 +540,27 @@ function softDeleteJob(id){
     +(att?"\nไฟล์แนบ: "+att+" ไฟล์ (ไฟล์ใน Drive จะไม่ถูกลบ)":"")
     +"\n\nลบแล้วจะหายจากทุกเครื่องที่ sync — ยืนยัน?";
   if(!confirm(msg))return;
-  finalizePendingDelete();                                 // มีรายการลบค้างอยู่ → ปิดของเก่าก่อน
+  const ts=new Date().toISOString();
   DB.jobs=DB.jobs.filter(x=>x.id!==id);
+  DB.tombstones=DB.tombstones||{};DB.tombstones[id]=ts;
+  saveLocal();                                             // persist ทันที — ปิดแท็บ/crash ระหว่างรอ undo ก็ลบสำเร็จ
+  if(DB.cloud.enabled)cloudSoftDelete(id,j,ts);            // fail → syncFail เข้า pendingSync retry เองอยู่แล้ว
   render();
   const t=document.createElement("div");t.className="toast";
   t.textContent="🗑 ลบ "+(j.jobNo||j.customerName||"งาน")+" แล้ว";
   const b=document.createElement("button");
   b.className="btn";b.style.cssText="margin-left:8px;padding:2px 10px;font-size:12px";
   b.textContent="↩ เลิกทำ";
-  b.onclick=()=>{const pd=PENDING_DEL;if(!pd)return;PENDING_DEL=null;clearTimeout(pd.timer);t.remove();
-    if(!getJob(pd.job.id))DB.jobs.push(pd.job);
-    saveLocal();render();toast("กู้คืนงานแล้ว ✓","ok");};
+  b.onclick=()=>{t.remove();
+    delete DB.tombstones[id];
+    j.updatedAt=new Date().toISOString();                  // ให้ใหม่กว่า tombstone — ทุกเครื่องรับงานคืนตอน pull
+    if(!getJob(id))DB.jobs.push(j);
+    saveLocal();
+    if(DB.cloud.enabled)cloudUpsert(j);
+    render();toast("กู้คืนงานแล้ว ✓","ok");};
   t.appendChild(b);
   $("#toast").appendChild(t);
-  PENDING_DEL={job:j,timer:setTimeout(finalizePendingDelete,8000),toastEl:t};
+  setTimeout(()=>{if(t.parentNode){t.style.opacity="0";t.style.transition=".3s";setTimeout(()=>t.remove(),320);}},8000);
 }
 /* ------- Unsaved form guard: เตือนก่อนออกจากฟอร์มที่พิมพ์ค้าง ------- */
 let FORM_DIRTY=false;
@@ -582,7 +570,6 @@ function confirmLeaveForm(){
   return false;
 }
 window.addEventListener("beforeunload",e=>{
-  finalizePendingDelete();                                 // ปิด undo ค้าง → เขียน tombstone ให้เรียบร้อยก่อนปิดหน้า
   if(STATE.view==="new"&&FORM_DIRTY){e.preventDefault();e.returnValue="";}
 });
 
@@ -688,7 +675,7 @@ async function fixDupJobNos(){
    เพื่อให้เครื่องอื่น pull เจอแล้วลบงานนั้นตามไปด้วย (กันงานฟื้น) */
 async function cloudSoftDelete(id,job,ts){
   const data=Object.assign({},job||{id:id},{_deleted:true,_deletedAt:ts,updatedAt:ts});
-  try{const r=await fetch(cloudBase(),{method:"POST",headers:Object.assign(cloudHeaders(),{Prefer:"resolution=merge-duplicates,return=minimal"}),
+  try{const r=await fetch(cloudBase(),{method:"POST",keepalive:true,headers:Object.assign(cloudHeaders(),{Prefer:"resolution=merge-duplicates,return=minimal"}),
     body:JSON.stringify([{id:id,data:data,updated_at:ts}])});
     if(!r.ok)throw new Error("HTTP "+r.status);
     syncOK(id);return true;}
@@ -1185,13 +1172,16 @@ function render(){
 }
 function setTitle(t,s){$("#pageTitle").textContent=t;$("#pageSub").textContent=s||"";}
 /* Banner เตือนเลขซ้ำ — โชว์ทุกหน้า (ไม่ใช่แค่ภาพรวม) */
+let BUILD_STALE=null; // เวอร์ชันใหม่กว่าที่เจอบน cloud (ให้ banner อยู่รอดทุก re-render)
 function paintGlobalDupAlert(){
   const box=document.getElementById("globalAlert");if(!box)return;
+  let h="";
+  if(BUILD_STALE)h+='<div class="dup-warn" style="margin:14px 26px 0;border-left-color:#2563eb;background:#eff6ff;color:#1e3a8a">🔄 <b>มีเวอร์ชันใหม่กว่า</b> ('+esc(BUILD_STALE)+') — หน้านี้เป็นเวอร์ชันเก่า ('+BUILD_VERSION+') กรุณารีเฟรชหน้า (กดค้างปุ่มรีโหลด) เพื่อใช้ระบบล่าสุด <button class="btn sm" onclick="location.reload(true)" style="margin-left:8px">รีเฟรชเลย</button></div>';
   const dupNos=findDupJobNos();
-  if(!dupNos.length){box.innerHTML="";return;}
-  box.innerHTML='<div class="dup-warn" style="margin:14px 26px 0">⚠️ <b>พบเลขที่งานซ้ำ '+dupNos.length+' เลข:</b> '+
+  if(dupNos.length)h+='<div class="dup-warn" style="margin:14px 26px 0">⚠️ <b>พบเลขที่งานซ้ำ '+dupNos.length+' เลข:</b> '+
     dupNos.map(([no,v])=>'<b>'+esc(no)+'</b> ('+v.map(j=>esc(j.customerName||"-")).join(" / ")+')').join(" • ")+
     ' <button class="btn sm" data-act="fixdupnos" style="margin-left:8px">🔧 แก้อัตโนมัติ</button></div>';
+  box.innerHTML=h;
 }
 
 /* ============================ RENDER: DASHBOARD ============================ */
@@ -2194,7 +2184,9 @@ function readFormJob(){
   const jtype=$("#f-jtype").value;
   const recDate=($("#f-record")&&$("#f-record").value)||todayStr();
   const manualNo=$("#f-jobno")?$("#f-jobno").value.trim():"";
-  const job=STATE.editId?Object.assign({},getJob(STATE.editId)):{id:uid(),createdAt:new Date().toISOString()};
+  // guard: งานที่กำลังแก้ถูกลบไประหว่างเปิดฟอร์ม (จาก pull/เครื่องอื่น) → บันทึกเป็นงานใหม่ กัน record พิการไม่มี id
+  const editBase=STATE.editId?getJob(STATE.editId):null;
+  const job=editBase?Object.assign({},editBase):{id:uid(),createdAt:new Date().toISOString()};
   if(manualNo)job.jobNo=manualNo;                       // VP พิมพ์เลขเอง → ใช้เลขนั้น
   // งานใหม่ที่ไม่พิมพ์เลขเอง → ออกเลขแบบ async ใน saveJobFromForm (เลขกลางจาก Cloud กันซ้ำ)
   const prevType=job.jobType;
@@ -2400,6 +2392,8 @@ function paintCostCats(){
 document.addEventListener("click",e=>{
   const el=e.target.closest("[data-act]");if(!el)return;
   const act=el.dataset.act;
+  // การแก้ฟอร์มเชิงโครงสร้าง (เพิ่ม/ลบสัตว์ วัคซีน ต้นทุน ไฟล์แนบ เติมข้อมูลลูกค้าเก่า) ก็ถือว่ามีข้อมูลค้าง
+  if(STATE.view==="new"&&/^(addpet|rmpet|addvax|rmvax|addcost|rmcost|attachrm|custfill)$/.test(act))FORM_DIRTY=true;
   if(act==="nav"){if(!confirmLeaveForm())return;STATE.view=el.dataset.view;STATE.dupFrom=null;if(el.dataset.view==="new")STATE.editId=null;STATE.filters={};render();window.scrollTo(0,0);}
   else if(act==="clearfilter"){STATE.filters={};render();}
   else if(act==="finpreset"){const r=presetRange(el.dataset.preset);STATE.filters.f_from=r[0];STATE.filters.f_to=r[1];render();}
@@ -2425,6 +2419,7 @@ document.addEventListener("click",e=>{
   else if(act==="invoice"){generateInvoice(el.dataset.id);}
   else if(act==="receipt"){generateReceipt(el.dataset.id);}
   else if(act==="closejob"){
+    if(!confirmLeaveForm())return;                 // กดจากในฟอร์มที่พิมพ์ค้าง → เตือนก่อน (render จะล้างฟอร์ม)
     const j=getJob(el.dataset.id);if(!j)return;
     const steps=jobItems(j).steps;
     if(!steps.length){toast("งานประเภทนี้ไม่มี checklist steps","err");return;}
@@ -2609,7 +2604,7 @@ document.addEventListener("click",e=>{
 /* ESC to close combo panels */
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeAllCountryPanels();});
 document.addEventListener("input",e=>{
-  if(STATE.view==="new")FORM_DIRTY=true;
+  if(STATE.view==="new"&&!/^rem-/.test(e.target.id||""))FORM_DIRTY=true;
   const el=e.target.closest("[data-act]");if(!el)return;
   const act=el.dataset.act;
   if(act==="filter"){STATE.filters[el.dataset.key]=el.value;
@@ -2655,7 +2650,7 @@ document.addEventListener("input",e=>{
   }
 });
 document.addEventListener("change",e=>{
-  if(STATE.view==="new")FORM_DIRTY=true;
+  if(STATE.view==="new"&&!/^rem-/.test(e.target.id||""))FORM_DIRTY=true;
   if(e.target.id==="importFile"){handleImport(e.target.files[0]);return;}
   if(e.target.id==="attachFile"){handleAttachUpload(e.target.files);e.target.value="";return;}
   if(e.target.id==="rem-label"){const w=$("#rem-custom-wrap");if(w)w.style.display=e.target.value==="อื่นๆ (พิมพ์เอง)"?"":"none";return;}
@@ -2867,7 +2862,11 @@ function handleImport(file){
     try{const d=JSON.parse(rd.result);
       if(!d.jobs||!Array.isArray(d.jobs))throw new Error("ไฟล์ไม่ถูกต้อง");
       if(!confirm("นำเข้า "+d.jobs.length+" งาน? ข้อมูลเดิมในเครื่องจะถูกแทนที่"))return;
-      DB.jobs=d.jobs;DB.jobs.forEach(migrateJobPets);if(d.cloud)DB.cloud=Object.assign(DB.cloud,d.cloud);
+      DB.tombstones=DB.tombstones||{};
+      DB.jobs=d.jobs.filter(x=>{if(x&&x._deleted){DB.tombstones[x.id]=x._deletedAt||x.updatedAt||new Date().toISOString();return false;}return true;});
+      DB.jobs.forEach(migrateJobPets);if(d.cloud)DB.cloud=Object.assign(DB.cloud,d.cloud);
+      if(d.drive&&typeof d.drive==="object")DB.drive=Object.assign(DB.drive,d.drive);
+      if(d.ui&&typeof d.ui==="object")DB.ui=d.ui;
       // restore ทุก key ให้ครบ (team/costCats/company/tombstones) — ไม่งั้นย้ายเครื่องแล้วข้อมูลหาย
       if(Array.isArray(d.team))DB.team=d.team;
       if(Array.isArray(d.costCats)&&d.costCats.length)DB.costCats=d.costCats;
@@ -2959,6 +2958,7 @@ function buildReportHTML(j){
     let r="";
     items.forEach((name,i)=>{
       const c=(j.checklist&&j.checklist[kind]&&j.checklist[kind][i])||{done:false,date:""};
+      if(c.na){r+='<tr><td style="color:#94a3b8;text-decoration:line-through">'+(kind==="steps"?(i+1)+". ":"")+esc(name)+'</td><td><span class="na">— ไม่ใช้กับงานนี้</span></td><td>-</td></tr>';return;}
       r+='<tr><td>'+(kind==="steps"?(i+1)+". ":"")+esc(name)+'</td><td>'+(c.done?'<span class="ok">✔ เสร็จแล้ว</span>':'<span class="na">○ ยังไม่ทำ</span>')+'</td><td>'+(c.date?fmtCE(c.date):"-")+'</td></tr>';
     });
     return '<p style="margin-top:9px;font-weight:700;font-size:11.5px">'+esc(label)+'</p>'+
@@ -3363,6 +3363,7 @@ paintSyncBadge();
 /* เปิดงานจาก link ใน Calendar (#job=...) */
 function openHashJob(){
   if(location.hash.indexOf("#job=")!==0)return false;
+  if(STATE.view==="new"&&FORM_DIRTY)return true;   // ฟอร์มเปิดอยู่+พิมพ์ค้าง — ห้าม render ทับ (เรียกซ้ำหลัง pull)
   const jid=decodeURIComponent(location.hash.slice(5));
   if(!getJob(jid))return false;
   STATE.view="new";STATE.editId=jid;render();window.scrollTo(0,0);
@@ -3378,10 +3379,7 @@ function checkBuildVersion(){
   fetch(base+"/rest/v1/rpc/get_build",{method:"POST",headers:cloudHeaders(),body:"{}"})
     .then(r=>r.ok?r.json():null)
     .then(latest=>{
-      if(latest&&latest>BUILD_VERSION){
-        const bar=document.getElementById("globalAlert");
-        if(bar)bar.innerHTML='<div class="dup-warn" style="margin:14px 26px 0;border-left-color:#2563eb;background:#eff6ff;color:#1e3a8a">🔄 <b>มีเวอร์ชันใหม่กว่า</b> ('+esc(latest)+') — หน้านี้เป็นเวอร์ชันเก่า ('+BUILD_VERSION+') กรุณารีเฟรชหน้า (กดค้างปุ่มรีโหลด) เพื่อใช้ระบบกันเลขซ้ำล่าสุด <button class="btn sm" onclick="location.reload(true)" style="margin-left:8px">รีเฟรชเลย</button></div>'+bar.innerHTML;
-      }
+      if(latest&&latest>BUILD_VERSION){BUILD_STALE=latest;paintGlobalDupAlert();}
     }).catch(()=>{});
   // บันทึก build ของเครื่องนี้ขึ้น cloud (ถ้าใหม่กว่า)
   fetch(base+"/rest/v1/rpc/set_build",{method:"POST",headers:cloudHeaders(),body:JSON.stringify({p_build:BUILD_VERSION})}).catch(()=>{});

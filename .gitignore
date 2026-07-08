@@ -1,0 +1,7 @@
+# ===== Convey Dashboard: track เฉพาะไฟล์ที่ขึ้นเว็บ =====
+# ไฟล์งานภายใน / โน้ต — ไม่ push ขึ้น GitHub สาธารณะ
+Convey-Dashboard.html
+convey-briefing-worker.js
+*.md
+!README.md
+.DS_Store

@@ -96,6 +96,11 @@ main{flex:1;min-width:0;display:flex;flex-direction:column;}
 .jc-fin .neg b{color:#dc2626;}
 .jc-note{grid-column:1/-1;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;font-size:12.5px;color:#78350f;white-space:pre-wrap;line-height:1.5;}
 .jc-note .k{font-weight:700;margin-right:4px;}
+.jc-finbox{grid-column:1/-1;border-top:1px dashed var(--line);padding-top:10px;}
+.jc-sellrow{display:flex;align-items:center;gap:10px;margin-bottom:9px;flex-wrap:wrap;}
+.jc-sellrow label{font-size:12px;font-weight:600;color:var(--mut);}
+.jc-sellrow input{width:170px;padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px;}
+.jc-finsum{margin-top:9px;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:7px 12px;display:flex;align-items:center;}
 .jcard-body{border-top:1px solid var(--line);padding:12px 16px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;}
 .jc-sec{font-size:12px;font-weight:700;color:var(--mut);margin-bottom:6px;}
 .ck-row{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:13px;}
@@ -1565,6 +1570,38 @@ function jcFinHTML(j){
     '<span class="'+pCls+'"><span class="k">กำไร</span><b>'+money(profit)+'</b></span>'+
     '</span>';
 }
+function jcFinBoxHTML(j){
+  const costs=Array.isArray(j.costs)?j.costs:[];
+  const cats=getCostCats();
+  let h='<div class="jc-finbox"><div class="jc-sec">💰 การเงิน</div>';
+  h+='<div class="jc-sellrow"><label>ราคาขายลูกค้า (บาท)</label>'+
+     '<input type="number" min="0" step="1" placeholder="0" value="'+esc(j.sellPrice!=null?j.sellPrice:"")+'" data-act="jcfin" data-id="'+j.id+'"></div>';
+  costs.forEach((c,i)=>{
+    const custom=(c.cat&&cats.indexOf(c.cat)<0);
+    h+='<div class="cost-row">'+
+      '<select data-act="jccost" data-id="'+j.id+'" data-i="'+i+'" data-f="cat">'+
+        '<option value="">— เลือกรายการต้นทุน —</option>'+
+        cats.map(o=>'<option value="'+esc(o)+'"'+(c.cat===o?" selected":"")+'>'+esc(o)+'</option>').join("")+
+        (custom?'<option value="'+esc(c.cat)+'" selected>'+esc(c.cat)+'</option>':'')+
+      '</select>'+
+      '<input type="number" min="0" step="1" placeholder="จำนวนเงิน (บาท)" value="'+esc(c.amount!=null?c.amount:"")+'" data-act="jccost" data-id="'+j.id+'" data-i="'+i+'" data-f="amount">'+
+      '<button class="cost-rm" data-act="jcrmcost" data-id="'+j.id+'" data-i="'+i+'" title="ลบรายการ">✕</button>'+
+      '<input type="text" class="cost-note" placeholder="หมายเหตุ (เช่น ชื่อ supplier, เลขใบเสร็จ)" value="'+esc(c.note||"")+'" data-act="jccost" data-id="'+j.id+'" data-i="'+i+'" data-f="note">'+
+    '</div>';
+  });
+  h+='<div style="margin-top:4px"><button class="btn sm" data-act="jcaddcost" data-id="'+j.id+'">+ เพิ่มรายการต้นทุน</button></div>';
+  h+='<div class="jc-finsum" data-finsum="'+j.id+'">'+(jcFinHTML(j)||'<span class="mini">กรอกราคาขาย/ต้นทุน — ระบบคำนวณกำไรให้อัตโนมัติ (บันทึกทันทีที่พิมพ์เสร็จ)</span>')+'</div>';
+  h+='</div>';
+  return h;
+}
+function updateJcFin(j){
+  const card=document.querySelector('.jcard[data-jid="'+j.id+'"]');if(!card)return;
+  const strip=jcFinHTML(j);
+  const foot=card.querySelector('.jcard-foot');
+  if(foot){const old=foot.querySelector('.jc-fin');if(old)old.remove();if(strip)foot.insertAdjacentHTML('beforeend',strip);}
+  const sum=card.querySelector('[data-finsum]');
+  if(sum)sum.innerHTML=strip||'<span class="mini">กรอกราคาขาย/ต้นทุน — ระบบคำนวณกำไรให้อัตโนมัติ (บันทึกทันทีที่พิมพ์เสร็จ)</span>';
+}
 function jobCardHTML(j){
   const t=JOB_TYPES[j.jobType]||{icon:"📋",label:j.jobType||"?"};
   const p=progressOf(j);
@@ -1581,7 +1618,7 @@ function jobCardHTML(j){
     else{label="เหลือ "+days+" วัน";}
   }
   const ns=closed?null:nextStep(j);
-  let h='<div class="jcard'+(closed?" closed":"")+'">';
+  let h='<div class="jcard'+(closed?" closed":"")+'" data-jid="'+j.id+'">';
   h+='<div class="jcard-head" data-act="expand" data-id="'+j.id+'">';
   h+='<span class="jc-caret">'+(exp?"▼":"▶")+'</span>';
   h+='<div class="jc-id"><b>'+esc(j.jobNo||"-")+'</b>'+
@@ -1623,6 +1660,7 @@ function jobCardHTML(j){
       });
       h+='</div>';
     });
+    h+=jcFinBoxHTML(j);
     h+='</div>';
   }
   h+='</div>';
@@ -2483,6 +2521,11 @@ document.addEventListener("click",e=>{
   else if(act==="rmpet"){syncPetsFromDOM();formPets.splice(+el.dataset.pet,1);renderPets();}
   else if(act==="addcost"){formCosts.push({cat:"",amount:"",note:""});paintCosts();refreshFinance();}
   else if(act==="rmcost"){formCosts.splice(+el.dataset.i,1);paintCosts();refreshFinance();}
+  else if(act==="jcaddcost"){const j=getJob(el.dataset.id);if(!j)return;
+    if(!Array.isArray(j.costs))j.costs=[];
+    j.costs.push({cat:"",amount:"",note:""});persistJob(j);render();}
+  else if(act==="jcrmcost"){const j=getJob(el.dataset.id);if(!j||!Array.isArray(j.costs))return;
+    j.costs.splice(+el.dataset.i,1);persistJob(j);render();}
   else if(act==="savejob"){saveJobFromForm();}
   else if(act==="suggestjobno"){const rd=$("#f-record")?$("#f-record").value:"";const jt=$("#f-jtype")?$("#f-jtype").value:"";const inp=$("#f-jobno");if(inp){inp.value=nextJobNo(rd,jt);inp.focus();}toast("เติมเลขถัดไปของประเภทนี้ในเดือนนี้แล้ว — ตรวจก่อนบันทึก","ok");}
   else if(act==="export"){doExport();}
@@ -2642,6 +2685,11 @@ document.addEventListener("input",e=>{
   else if(act==="finin"){refreshFinance();}
   else if(act==="recin"){setBE("be-record",el.value);}
   else if(act==="costin"){if(formCosts[+el.dataset.i])formCosts[+el.dataset.i][el.dataset.f]=el.value;refreshFinance();}
+  else if(act==="jcfin"){const j=getJob(el.dataset.id);if(j){j.sellPrice=el.value;updateJcFin(j);}}
+  else if(act==="jccost"){const j=getJob(el.dataset.id);if(j){
+    if(!Array.isArray(j.costs))j.costs=[];
+    const ci=+el.dataset.i;if(!j.costs[ci])j.costs[ci]={cat:"",amount:"",note:""};
+    j.costs[ci][el.dataset.f]=el.value;updateJcFin(j);}}
   else if(act==="teamin"){if(DB.team[+el.dataset.i])DB.team[+el.dataset.i][el.dataset.f]=el.value;saveLocal();}
   else if(act==="catin"){if(Array.isArray(DB.costCats)&&DB.costCats[+el.dataset.i]!=null)DB.costCats[+el.dataset.i]=el.value;saveLocal();}
   else if(act==="coin"){if(!DB.company)DB.company=Object.assign({},DEFAULT_COMPANY);DB.company[el.dataset.f]=el.value;saveLocal();}
@@ -2685,6 +2733,16 @@ document.addEventListener("change",e=>{
     if(!j.checklist[k])j.checklist[k]={};
     if(!j.checklist[k][i])j.checklist[k][i]={done:false,date:""};
     j.checklist[k][i].date=el.value;persistJob(j);render();
+  }
+  else if(el.dataset.act==="jcfin"||el.dataset.act==="jccost"){
+    const j=getJob(el.dataset.id);if(!j)return;
+    if(el.dataset.act==="jcfin")j.sellPrice=el.value;
+    else{
+      if(!Array.isArray(j.costs))j.costs=[];
+      const ci=+el.dataset.i;if(!j.costs[ci])j.costs[ci]={cat:"",amount:"",note:""};
+      j.costs[ci][el.dataset.f]=el.value;
+    }
+    persistJob(j);updateJcFin(j);
   }
   else if(el.dataset.act==="jtype"){
     const nd=JOB_TYPES[el.value].dir;

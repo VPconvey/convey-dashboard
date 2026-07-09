@@ -293,6 +293,30 @@ code{background:var(--gray-l);padding:1px 6px;border-radius:4px;font-size:12px;}
 a{color:var(--brand-d);}
 .mini{font-size:11.5px;color:var(--mut);}
 .row-actions{display:flex;gap:4px;}
+/* ---- Calendar tab ---- */
+.cal-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+.cal-title{font-size:17px;font-weight:700;min-width:150px;text-align:center;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;}
+.cal-dow{text-align:center;font-size:11px;font-weight:700;color:#64748b;padding:4px 0;}
+.cal-cell{min-height:86px;border:1px solid var(--line);border-radius:8px;padding:4px 5px;background:#fff;cursor:pointer;transition:.12s;overflow:hidden;}
+.cal-cell:hover{background:#fff7ed;}
+.cal-cell.blank{background:#f8fafc;border-style:dashed;cursor:default;}
+.cal-cell.blank:hover{background:#f8fafc;}
+.cal-cell.today{border:2px solid var(--brand);}
+.cal-cell.sel{background:#fff7ed;box-shadow:inset 0 0 0 2px var(--brand);}
+.cal-num{font-size:11.5px;font-weight:700;color:#475569;margin-bottom:3px;}
+.cal-cell.today .cal-num{color:var(--brand-d);}
+.cal-ev{font-size:10.5px;border-radius:5px;padding:1px 5px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;}
+.ev-travel{background:var(--brand);}
+.ev-done{background:#94a3b8;}
+.ev-blood{background:#dc2626;}
+.ev-vax{background:#7c3aed;}
+.cal-more{font-size:10px;color:#64748b;}
+.cal-day-panel{margin-top:14px;}
+.cal-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:#475569;margin:10px 2px 0;}
+.cal-legend .dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px;}
+.cal-dots{display:none;}
+@media(max-width:760px){.cal-cell{min-height:52px;padding:3px;}.cal-ev,.cal-more{display:none;}.cal-dots{display:flex;gap:3px;flex-wrap:wrap;}.cal-dots span{width:8px;height:8px;border-radius:50%;}}
 </style>
 </head>
 <body>
@@ -324,7 +348,7 @@ a{color:var(--brand-d);}
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 "use strict";
-const BUILD_VERSION="2026-06-13a"; // อัปเดตทุกครั้งที่ deploy — ใช้เตือนเครื่องที่เปิดหน้าเก่าค้าง
+const BUILD_VERSION="2026-07-09a"; // อัปเดตทุกครั้งที่ deploy — ใช้เตือนเครื่องที่เปิดหน้าเก่าค้าง
 /* ============================ CONFIG ============================ */
 const JOB_TYPES = {
   export_permit:{label:"Export Permit",icon:"📤",dir:"export",
@@ -1156,6 +1180,7 @@ function renderNav(){
   let h='<div class="nav-sec">หน้าหลัก</div>';
   h+=navItem("dashboard","📊","ภาพรวมทั้งหมด",mj.length);
   h+=navItem("finance","💰","ภาพรวมการเงิน",null);
+  h+=navItem("calendar","📅","ปฏิทินงาน",null);
   h+=navItem("new","➕","บันทึกงานใหม่",null);
   h+='<div class="nav-sec">แท็บงานตามประเภท'+(STATE.fMonth?(' • '+monthLabel(STATE.fMonth)):'')+'</div>';
   TYPE_ORDER.forEach(k=>{const t=JOB_TYPES[k];const c=mj.filter(j=>j.jobType===k).length;
@@ -1179,6 +1204,7 @@ function render(){
   const v=STATE.view;
   if(v==="dashboard"){setTitle("ภาพรวมทั้งหมด","สรุปสถานะงานทุกประเภทในที่เดียว");renderDashboard();}
   else if(v==="finance"){setTitle("ภาพรวมการเงิน","สรุปยอดเรียกเก็บ ต้นทุน และกำไรสุทธิ");renderFinanceDashboard();}
+  else if(v==="calendar"){setTitle("📅 ปฏิทินงาน","กำหนดการเดินทาง เจาะเลือด และวัคซีนหมดอายุ — ทุกงานตามวันจริง");renderCalendar();}
   else if(v==="new"){setTitle(STATE.editId?"แก้ไขงาน":"บันทึกงานใหม่","กรอกข้อมูลลูกค้า สัตว์เลี้ยง และวัคซีน");renderForm();}
   else if(v==="settings"){setTitle("ตั้งค่า / สำรองข้อมูล","จัดการการเก็บข้อมูลและ Cloud Sync");renderSettings();}
   else if(v.startsWith("job:")){const k=v.slice(4);const t=JOB_TYPES[k];
@@ -1308,6 +1334,88 @@ function renderUrgentWidget(){
   });
   h+='</div></div>';
   return h;
+}
+
+/* ============================ RENDER: CALENDAR ============================ */
+/* รวม event ทุกงาน (ไม่ยึด month filter ของ dashboard — ปฏิทินดูตามวันจริง)
+   travel = วันเดินทาง • blood = วันเจาะเลือด • vax = วัคซีนหมดอายุ (เฉพาะงานที่ยังไม่ปิด) */
+function calEvents(){
+  const ev={};
+  const add=(date,o)=>{if(!date||!/^\d{4}-\d{2}-\d{2}$/.test(date))return;(ev[date]=ev[date]||[]).push(o);};
+  DB.jobs.forEach(j=>{
+    const closed=isClosed(j);
+    if(j.travelDate)add(j.travelDate,{type:"travel",icon:"✈️",cls:closed?"ev-done":"ev-travel",
+      label:(j.jobNo||"-")+" "+(j.customerName||"-"),job:j});
+    (j.pets||[]).forEach(p=>{
+      if(p.bloodDate)add(p.bloodDate,{type:"blood",icon:"🩸",cls:"ev-blood",
+        label:"เจาะเลือด "+(p.name||"-")+" • "+(j.jobNo||"-"),job:j});
+      if(closed)return;
+      const vx=p.vax||{};
+      [["rabies","Rabies"],["combined","วัคซีนรวม"]].forEach(([k,lbl])=>{
+        const arr=vx[k]||[];const last=arr.length?arr[arr.length-1]:null;
+        if(last&&last.expiry)add(last.expiry,{type:"vax",icon:"💉",cls:"ev-vax",
+          label:lbl+"หมดอายุ "+(p.name||"-")+" • "+(j.jobNo||"-"),job:j});
+      });
+    });
+  });
+  return ev;
+}
+function renderCalendar(){
+  if(!STATE.calMonth){const n=new Date();STATE.calMonth=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");}
+  const ym=STATE.calMonth,y=+ym.slice(0,4),m=+ym.slice(5,7);
+  const ev=calEvents();
+  const startDow=new Date(y,m-1,1).getDay();
+  const dim=new Date(y,m,0).getDate();
+  const today=todayStr();
+  let h='<div class="cal-head">'+
+    '<button class="btn sm" data-act="calnav" data-dir="-1">◀ เดือนก่อน</button>'+
+    '<span class="cal-title">'+TH_MON_FULL[m-1]+' '+(y+543)+'</span>'+
+    '<button class="btn sm" data-act="calnav" data-dir="1">เดือนถัดไป ▶</button>'+
+    '<button class="btn sm primary" data-act="calnav" data-dir="0">วันนี้</button></div>';
+  h+='<div class="cal-grid">';
+  ["อา","จ","อ","พ","พฤ","ศ","ส"].forEach(d=>h+='<div class="cal-dow">'+d+'</div>');
+  for(let i=0;i<startDow;i++)h+='<div class="cal-cell blank"></div>';
+  for(let d=1;d<=dim;d++){
+    const iso=ym+"-"+String(d).padStart(2,"0");
+    const list=ev[iso]||[];
+    const cls=(iso===today?" today":"")+(STATE.calDay===iso?" sel":"");
+    h+='<div class="cal-cell'+cls+'" data-act="calday" data-date="'+iso+'"><div class="cal-num">'+d+'</div>';
+    list.slice(0,3).forEach(e=>h+='<div class="cal-ev '+e.cls+'">'+e.icon+' '+esc(e.label)+'</div>');
+    if(list.length>3)h+='<div class="cal-more">+'+(list.length-3)+' รายการ</div>';
+    h+='<div class="cal-dots">'+list.slice(0,6).map(e=>'<span class="'+e.cls+'"></span>').join("")+'</div>';
+    h+='</div>';
+  }
+  const tail=(startDow+dim)%7;
+  if(tail)for(let i=tail;i<7;i++)h+='<div class="cal-cell blank"></div>';
+  h+='</div>';
+  h+='<div class="cal-legend">'+
+    '<span><span class="dot" style="background:var(--brand)"></span>✈️ วันเดินทาง</span>'+
+    '<span><span class="dot" style="background:#94a3b8"></span>✈️ เดินทาง (งานปิดแล้ว)</span>'+
+    '<span><span class="dot" style="background:#dc2626"></span>🩸 วันเจาะเลือด</span>'+
+    '<span><span class="dot" style="background:#7c3aed"></span>💉 วัคซีนหมดอายุ (เฉพาะงานที่ยังไม่ปิด)</span></div>';
+  if(STATE.calDay){
+    const list=ev[STATE.calDay]||[];
+    h+='<div class="urgent-card cal-day-panel"><div class="urgent-head">📌 '+fmtCE(STATE.calDay)+' ('+toBE(STATE.calDay)+') — '+list.length+' รายการ</div>';
+    if(!list.length)h+='<div class="mini" style="padding:6px 2px">ไม่มีกำหนดการในวันนี้ — คลิกวันอื่นในปฏิทิน หรือกด "บันทึกงานใหม่" เพื่อเพิ่มงาน</div>';
+    else{
+      h+='<div class="urgent-list">';
+      list.forEach(e=>{
+        const j=e.job,t=JOB_TYPES[j.jobType]||{icon:"📋",label:j.jobType||"?"};
+        const tag=e.type==="travel"?"เดินทาง":e.type==="blood"?"เจาะเลือด":"วัคซีนหมดอายุ";
+        h+='<div class="urgent-row" data-act="edit" data-id="'+j.id+'">'+
+          '<span class="urgent-countdown '+(e.type==="travel"?(isClosed(j)?"ok":"warn"):"soft")+'">'+e.icon+' '+tag+'</span>'+
+          '<span class="urgent-meta"><b>'+esc(j.jobNo||"-")+'</b> • '+t.icon+' '+esc(t.label)+' • '+esc(j.customerName||"-")+' • 🐾 '+esc(petsShort(j))+' • '+esc(j.originCountry||"?")+' → '+esc(j.destCountry||"?")+'</span>'+
+          (j.assignee?'<span class="urgent-assignee">👤 '+esc(j.assignee)+'</span>':'')+
+          (j.calendarEvent&&j.calendarEvent.link?'<a class="btn sm ghost" href="'+esc(j.calendarEvent.link)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">📆 เปิดใน Google Calendar</a>':'')+
+          '</div>';
+      });
+      h+='</div>';
+    }
+    h+='</div>';
+  }else{
+    h+='<div class="mini" style="margin-top:12px">💡 คลิกวันในปฏิทินเพื่อดูรายละเอียดงานของวันนั้น • คลิกงานเพื่อเปิดแก้ไข</div>';
+  }
+  $("#content").innerHTML=h;
 }
 
 /* ============================ RENDER: FINANCE DASHBOARD ============================ */
@@ -2458,6 +2566,13 @@ document.addEventListener("click",e=>{
   if(act==="nav"){if(!confirmLeaveForm())return;STATE.view=el.dataset.view;STATE.dupFrom=null;if(el.dataset.view==="new")STATE.editId=null;STATE.filters={};render();window.scrollTo(0,0);}
   else if(act==="clearfilter"){STATE.filters={};render();}
   else if(act==="finpreset"){const r=presetRange(el.dataset.preset);STATE.filters.f_from=r[0];STATE.filters.f_to=r[1];render();}
+  else if(act==="calnav"){
+    if(el.dataset.dir==="0"){const n=new Date();STATE.calMonth=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");STATE.calDay=todayStr();}
+    else{const y=+STATE.calMonth.slice(0,4),m=+STATE.calMonth.slice(5,7);
+      const nd=new Date(y,m-1+Number(el.dataset.dir),1);
+      STATE.calMonth=nd.getFullYear()+"-"+String(nd.getMonth()+1).padStart(2,"0");STATE.calDay=null;}
+    render();}
+  else if(act==="calday"){if(el.dataset.date){STATE.calDay=STATE.calDay===el.dataset.date?null:el.dataset.date;render();}}
   else if(act==="toggle"){toggleStep(el.dataset.id,el.dataset.kind,+el.dataset.idx);}
   else if(act==="paid"){const j=getJob(el.dataset.id);if(!j)return;
     if(!j.paid){

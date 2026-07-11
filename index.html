@@ -351,7 +351,7 @@ a{color:var(--brand-d);}
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 "use strict";
-const BUILD_VERSION="2026-07-11a"; // อัปเดตทุกครั้งที่ deploy — ใช้เตือนเครื่องที่เปิดหน้าเก่าค้าง
+const BUILD_VERSION="2026-07-11b"; // อัปเดตทุกครั้งที่ deploy — ใช้เตือนเครื่องที่เปิดหน้าเก่าค้าง
 /* ============================ LEADS CONFIG ============================ */
 const LEAD_STAGES={
   new:{label:"ทักมาใหม่",icon:"🆕",color:"#2563eb"},
@@ -1418,6 +1418,42 @@ function leadSelect(id,opts,val,act,dataId,allowBlank){
   });
   return h+'</select>';
 }
+/* ---- Google Calendar reminder สำหรับวันนัด follow-up (reuse token/pattern เดิมของงาน) ---- */
+async function leadCalendarSync(id){
+  const l=getLead(id);if(!l)return;
+  if(!l.nextFollowUp){toast("ตั้งวันนัด follow-up ก่อน แล้วค่อยลงปฏิทิน","err");return;}
+  if(!driveReady()){toast("ยังไม่ได้เชื่อม Google — ไปที่ ตั้งค่า → Google Drive ก่อน","err");return;}
+  try{
+    const token=await ensureDriveToken();
+    const q=l.quote||{};
+    const event={summary:"🧲 Follow-up ลูกค้า: "+(l.name||"-")+(l.destCountry?(" → "+l.destCountry):""),
+      description:["Lead จาก Convey Dashboard — stage: "+((LEAD_STAGES[l.stage]||{}).label||l.stage),
+        l.phone?("📞 "+l.phone):"",l.lineId?("💬 LINE: "+l.lineId):"",
+        l.petInfo?("🐾 "+l.petInfo):"",
+        q.amount?("💰 ยอดเสนอ: "+Number(q.amount).toLocaleString("th-TH")+" บาท"):"",
+        l.notes||""].filter(Boolean).join("\n"),
+      start:{date:l.nextFollowUp},end:{date:l.nextFollowUp},
+      reminders:{useDefault:false,overrides:[{method:"popup",minutes:1440},{method:"email",minutes:1440}]}};
+    const base="https://www.googleapis.com/calendar/v3/calendars/primary/events";
+    const hdr={Authorization:"Bearer "+token,"Content-Type":"application/json"};
+    let r=null;
+    if(l.calendarEvent&&l.calendarEvent.id){
+      r=await fetch(base+"/"+encodeURIComponent(l.calendarEvent.id),{method:"PATCH",headers:hdr,body:JSON.stringify(event)});
+      if(r.status===404||r.status===410)r=null; // event ถูกลบจากปฏิทินไปแล้ว → สร้างใหม่
+    }
+    if(!r)r=await fetch(base,{method:"POST",headers:hdr,body:JSON.stringify(event)});
+    if(!r.ok)throw new Error("HTTP "+r.status+" — ตรวจว่าเปิด Calendar API ใน Google Cloud แล้ว");
+    const ev=await r.json();
+    l.calendarEvent={id:ev.id,link:ev.htmlLink||"",date:l.nextFollowUp,createdAt:new Date().toISOString()};
+    persistLead(l);
+    toast("📅 ลงปฏิทินแล้ว ✓ เตือน 1 วันล่วงหน้า ("+fmtCE(l.nextFollowUp)+")","ok");render();
+  }catch(e){toast("ลงปฏิทินไม่สำเร็จ: "+e.message,"err");}
+}
+function leadCalCleanup(l){ // best-effort: ลบ event ตอน lead ถูกลบ/ปิดดีล — พลาดก็ไม่เป็นไร
+  if(l&&l.calendarEvent&&l.calendarEvent.id&&driveReady()){
+    try{deleteCalendarEvent(l.calendarEvent.id).catch(()=>{});}catch(e){}
+  }
+}
 function blankLead(){
   return {id:"lead-"+Date.now()+"-"+Math.random().toString(36).slice(2,7),_type:"lead",
     createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),
@@ -1511,6 +1547,10 @@ function leadCardHTML(l){
     if(LEAD_OPEN_STAGES.indexOf(l.stage)>=0){
       h+='<label class="mini" style="font-weight:700">Stage:</label>'+leadSelect("",LEAD_OPEN_STAGES.reduce((o,k)=>{o[k]=LEAD_STAGES[k];return o;},{}),l.stage,"lead-stage",l.id,false);
       h+='<label class="mini" style="font-weight:700;margin-left:4px">นัดถัดไป:</label><input type="date" value="'+esc(l.nextFollowUp||"")+'" data-act="lead-fu" data-id="'+l.id+'" style="font-size:12.5px;padding:4px 6px">';
+      const evStale=l.calendarEvent&&l.calendarEvent.id&&l.calendarEvent.date!==l.nextFollowUp;
+      h+='<button class="btn sm" data-act="lead-cal" data-id="'+l.id+'"'+(evStale?' style="border-color:#d97706;color:#92400e;background:#fffbeb"':'')+'>'+
+         (evStale?"📅 นัดเปลี่ยน — อัพเดทปฏิทิน":(l.calendarEvent&&l.calendarEvent.id?"📅 อยู่ในปฏิทินแล้ว ✓":"📅 ลงปฏิทิน"))+'</button>';
+      if(l.calendarEvent&&l.calendarEvent.link)h+='<a href="'+esc(l.calendarEvent.link)+'" target="_blank" rel="noopener" class="mini" style="color:var(--brand-d)">เปิดดู</a>';
       h+='<span style="flex:1"></span>';
       h+='<button class="btn sm primary" data-act="lead-won" data-id="'+l.id+'">✅ ปิดดีล → สร้างงาน</button>';
       h+='<button class="btn sm" data-act="lead-lost" data-id="'+l.id+'">❌ ไม่ปิดดีล</button>';
@@ -2850,11 +2890,13 @@ document.addEventListener("click",e=>{
     const l=getLead(el.dataset.id);if(!l)return;
     if(!confirm("ลบ Lead \""+(l.name||"-")+"\"?\nลบแล้วจะหายจากทุกเครื่องที่ sync — ยืนยัน?"))return;
     const ts=new Date().toISOString();
+    leadCalCleanup(l);
     DB.leads=DB.leads.filter(x=>x.id!==l.id);
     DB.tombstones=DB.tombstones||{};DB.tombstones[l.id]=ts;
     saveLocal();if(DB.cloud.enabled)cloudSoftDelete(l.id,l,ts);
     toast("ลบ Lead แล้ว","ok");render();
   }
+  else if(act==="lead-cal"){leadCalendarSync(el.dataset.id);}
   else if(act==="lead-lost"){STATE.leadLostId=el.dataset.id;render();}
   else if(act==="lead-lost-cancel"){STATE.leadLostId=null;render();}
   else if(act==="lead-lost-confirm"){
@@ -3229,6 +3271,7 @@ async function saveJobFromForm(){
       const ld=getLead(STATE.leadFrom);
       if(ld){ld.stage="won";ld.jobId=job.id;
         if(ld.quote&&ld.quote.amount)ld.quote.status="accepted";
+        leadCalCleanup(ld);ld.calendarEvent=null; // ปิดดีลแล้ว — เคลียร์ reminder follow-up (งานมีปฏิทินของตัวเอง)
         persistLead(ld);}
       STATE.leadFrom=null;
     }

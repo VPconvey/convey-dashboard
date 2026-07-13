@@ -434,7 +434,7 @@ const DEFAULT_COMPANY={
 };
 const CURRENCIES=["THB","USD","EUR","GBP","SGD","JPY","CNY","HKD","AUD","MYR"];
 const PAYMENT_METHODS=["โอนเงิน / Bank Transfer","เงินสด / Cash","เช็ค / Cheque","บัตรเครดิต / Credit Card","PayPal","Wise / TransferWise","Other"];
-let DB={jobs:[],leads:[],cloud:{url:"",key:"",enabled:false},drive:{clientId:"",folderId:"",enabled:false},team:[],costCats:DEFAULT_COST_CATS.slice(),company:Object.assign({},DEFAULT_COMPANY),invSeq:{},rcpSeq:{},tombstones:{}};
+let DB={jobs:[],leads:[],cloud:{url:"",key:"",enabled:false},drive:{clientId:"",folderId:"",enabled:false},team:[],costCats:DEFAULT_COST_CATS.slice(),company:Object.assign({},DEFAULT_COMPANY),invSeq:{},rcpSeq:{},tombstones:{},jobNoHigh:{}};
 let STATE={view:"dashboard",editId:null,dupFrom:null,leadFrom:null,leadEditId:null,leadLostId:null,leadStageFilter:"",filters:{},
   fMonth:(function(){const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");})()};
 /* ------- จำตำแหน่ง scroll ของตาราง (กันเด้งกลับซ้ายสุดตอนติ๊กสถานะ) ------- */
@@ -486,6 +486,8 @@ const uid=()=>"j"+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 function todayStr(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
 function parseD(s){if(!s||!/^\d{4}-\d{2}-\d{2}$/.test(s))return null;const p=s.split("-").map(Number);const d=new Date(Date.UTC(p[0],p[1]-1,p[2]));return isNaN(d)?null:d;}
 function daysBetween(a,b){if(!a||!b)return null;return Math.round((a-b)/86400000);}
+/* D1: Google Calendar all-day event มี end แบบ exclusive → ต้องใช้ "วันถัดไป" ไม่งั้น event ยาว 0 วัน/สร้างไม่สำเร็จ */
+function calNextDay(s){const d=parseD(s);if(!d)return s;d.setUTCDate(d.getUTCDate()+1);return d.toISOString().slice(0,10);}
 function toBE(s){const d=parseD(s);if(!d)return"";return d.getUTCDate()+" "+TH_MON[d.getUTCMonth()]+" "+(d.getUTCFullYear()+543);}
 function fmtCE(s){const d=parseD(s);if(!d)return"-";return d.getUTCDate()+" "+TH_MON[d.getUTCMonth()]+" "+d.getUTCFullYear();}
 function breedDisplay(p){if(!p)return"";if(p.breedMix)return (p.breed||"")+" — "+p.breedMix;return p.breed||"";}
@@ -526,6 +528,7 @@ function loadLocal(){
     DB.costCats=(Array.isArray(d.costCats)&&d.costCats.length)?d.costCats:DEFAULT_COST_CATS.slice();
     DB.company=Object.assign({},DEFAULT_COMPANY,d.company||{});
     DB.invSeq=(d.invSeq&&typeof d.invSeq==="object")?d.invSeq:{};
+    DB.jobNoHigh=(d.jobNoHigh&&typeof d.jobNoHigh==="object")?d.jobNoHigh:{};
     DB.rcpSeq=(d.rcpSeq&&typeof d.rcpSeq==="object")?d.rcpSeq:{};
     DB.tombstones=(d.tombstones&&typeof d.tombstones==="object")?d.tombstones:{};
     DB.pendingSync=Array.isArray(d.pendingSync)?d.pendingSync:[];
@@ -536,6 +539,8 @@ function loadLocal(){
   DB.ui=Object.assign({jobView:"card"},DB.ui||{});
   DB.jobs=DB.jobs.filter(j=>{if(j&&j._deleted){DB.tombstones[j.id]=j._deletedAt||j.updatedAt||new Date().toISOString();return false;}return true;});
   DB.jobs.forEach(migrateJobPets);
+  DB.jobNoHigh=DB.jobNoHigh||{};
+  DB.jobs.forEach(j=>recordJobNoHigh(j.jobNo));   // seed high-water จากงานที่มีอยู่ (A3)
   DB.leads=(DB.leads||[]).filter(l=>{if(l&&l._deleted){DB.tombstones[l.id]=l._deletedAt||l.updatedAt||new Date().toISOString();return false;}return true;});
 }
 function getLead(id){return (DB.leads||[]).find(l=>l.id===id);}
@@ -554,10 +559,19 @@ function jobMonthKey(dateStr){
 }
 /* เลขรันต่อเนื่อง "ร่วมกันทั้งเดือน" (ทุกประเภทใช้ลำดับเดียวกัน) — รหัสประเภทเป็นแค่ส่วนแสดงผลข้างหน้า
    หาเลขสูงสุดของเดือน รองรับทั้งเลขเก่า CV-2026-06-053 และเลขใหม่ CV-EP-2026-06-054 */
+/* บันทึก "เลขสูงสุดที่เคยออก" รายเดือน — ไม่ลดลงแม้ลบงาน (A3: กันเลขซ้ำหลังลบงานเลขสูงสุดในโหมด local) */
+function recordJobNoHigh(no){
+  no=(no||"").trim();
+  const m=no.match(/^CV-(?:[A-Z]{2}-)?(\d{4}-\d{2})-(\d+)$/);
+  if(!m)return;
+  const key=m[1];const n=parseInt(m[2],10);
+  DB.jobNoHigh=DB.jobNoHigh||{};
+  if(!DB.jobNoHigh[key]||n>DB.jobNoHigh[key])DB.jobNoHigh[key]=n;
+}
 function jobMonthMaxNo(dateStr){
   const key=jobMonthKey(dateStr);
   const re=new RegExp("^CV-(?:[A-Z]{2}-)?"+key+"-(\\d+)$");
-  let max=0;
+  let max=(DB.jobNoHigh&&DB.jobNoHigh[key])||0;   // เริ่มจาก high-water ที่เคยออก (A3)
   DB.jobs.forEach(j=>{const m=(j.jobNo||"").trim().match(re);if(m){const n=parseInt(m[1],10);if(n>max)max=n;}});
   return max;
 }
@@ -589,6 +603,7 @@ async function backfillJobNos(){
 }
 function persistJob(job){
   job.updatedAt=new Date().toISOString();
+  recordJobNoHigh(job.jobNo);   // A3: จำเลขสูงสุดที่ออกไว้ ไม่ให้ย้อนกลับมาซ้ำหลังลบ
   const i=DB.jobs.findIndex(j=>j.id===job.id);
   if(i<0)DB.jobs.push(job);else DB.jobs[i]=job;
   saveLocal();
@@ -974,7 +989,7 @@ async function createCalendarEvent(job,attendees){
   const token=await ensureDriveToken();
   if(!job.travelDate)throw new Error("งานนี้ยังไม่มีวันเดินทาง — กรอกวันเดินทางก่อน");
   const event={summary:calEventTitle(job),description:calEventDesc(job),
-    start:{date:job.travelDate},end:{date:job.travelDate},
+    start:{date:job.travelDate},end:{date:calNextDay(job.travelDate)},
     reminders:{useDefault:false,overrides:[{method:"popup",minutes:4320},{method:"popup",minutes:1440},{method:"email",minutes:1440}]}};
   if(attendees.length)event.attendees=attendees.map(e=>({email:e}));
   const url="https://www.googleapis.com/calendar/v3/calendars/primary/events"+(attendees.length?"?sendUpdates=all":"");
@@ -994,7 +1009,7 @@ async function createReminderEvent(job,label,date,attendees,time){
     startEnd={start:{dateTime:fmtLocal(s),timeZone:"Asia/Bangkok"},end:{dateTime:fmtLocal(e),timeZone:"Asia/Bangkok"}};
     overrides=[{method:"popup",minutes:1440},{method:"email",minutes:1440},{method:"popup",minutes:60}];
   }else{
-    startEnd={start:{date:date},end:{date:date}};
+    startEnd={start:{date:date},end:{date:calNextDay(date)}};
     overrides=[{method:"popup",minutes:1440},{method:"email",minutes:1440}];
   }
   const event=Object.assign({summary:calEventTitle(job,label),description:calEventDesc(job),
@@ -1158,8 +1173,8 @@ function validatePet(pet,dir,cond,travelDate){
       else if(!r0)res.micro={ok:null,msg:"ยังไม่ระบุวัคซีนพิษสุนัขบ้าเข็มแรก"};
       else if(cond==="china"){const ok=daysBetween(mc,r0)<=0;
         res.micro={ok,msg:ok?"ฝังก่อน/วันเดียวกับวัคซีนพิษสุนัขบ้าเข็มแรก ✓":"จีน: ไมโครชิพต้องฝังก่อนหรือวันเดียวกับวัคซีนพิษสุนัขบ้าเข็มแรก"};}
-      else{const ok=daysBetween(mc,r0)>=0;
-        res.micro={ok,msg:ok?"ฝังหลัง/วันเดียวกับวัคซีนพิษสุนัขบ้าเข็มแรก ✓":"EU: ไมโครชิพต้องฝังหลังวัคซีนพิษสุนัขบ้าเข็มแรก"};}
+      else{const ok=daysBetween(mc,r0)<=0;
+        res.micro={ok,msg:ok?"ฝังก่อน/วันเดียวกับวัคซีนพิษสุนัขบ้าเข็มแรก ✓":"EU: ไมโครชิพต้องฝังก่อน/วันเดียวกับวัคซีนพิษสุนัขบ้าเข็มแรก (ถ้าฉีดก่อนฝัง วัคซีนไม่นับ ต้องฉีดใหม่)"};}
 
       const bd=parseD(pet.bloodDate);
       if(cond==="china"){
@@ -1171,6 +1186,14 @@ function validatePet(pet,dir,cond,travelDate){
       }else{
         res.blood=bd?{ok:true,msg:"บันทึกวันที่เจาะเลือดแล้ว"}:{ok:null,msg:"ยังไม่ระบุวันที่เจาะเลือด"};
         if(rb.length<1||!rb[0].date)res.extra.push({ok:false,msg:"EU: ต้องฉีดวัคซีนพิษสุนัขบ้า 1 เข็ม"});
+        else{
+          // EU: ต้องรอ ≥ 21 วันหลังวัคซีนพิษสุนัขบ้าเข็มแรกก่อนเดินทาง (อ้างอิง europa.eu)
+          const r0e=parseD(rb[0].date);
+          if(r0e&&imp){const wait=daysBetween(imp,r0e);
+            if(wait<21)res.extra.push({ok:false,msg:"EU: ต้องรอ ≥ 21 วันหลังวัคซีนพิษสุนัขบ้าเข็มแรกก่อนเดินทาง (ตอนนี้ "+wait+" วัน)"});
+            else res.extra.push({ok:true,msg:"EU: ครบ 21 วันหลังวัคซีนเข็มแรกแล้ว ("+wait+" วัน) ✓"});
+          }else if(r0e&&!imp){res.extra.push({ok:null,msg:"EU: ระบุวันเดินทางเพื่อตรวจเงื่อนไขรอ 21 วัน"});}
+        }
       }
     }
   }
@@ -1436,7 +1459,7 @@ async function leadCalendarSync(id){
         l.petInfo?("🐾 "+l.petInfo):"",
         q.amount?("💰 ยอดเสนอ: "+Number(q.amount).toLocaleString("th-TH")+" บาท"):"",
         l.notes||""].filter(Boolean).join("\n"),
-      start:{date:l.nextFollowUp},end:{date:l.nextFollowUp},
+      start:{date:l.nextFollowUp},end:{date:calNextDay(l.nextFollowUp)},
       reminders:{useDefault:false,overrides:[{method:"popup",minutes:1440},{method:"email",minutes:1440}]}};
     const base="https://www.googleapis.com/calendar/v3/calendars/primary/events";
     const hdr={Authorization:"Bearer "+token,"Content-Type":"application/json"};
@@ -2739,7 +2762,66 @@ function renderSettings(){
     '<li>กด "บันทึก & เชื่อมต่อ" แล้วกด "ส่งขึ้น Cloud" 1 ครั้ง</li>'+
     '<li>ในเครื่องอื่น เปิดไฟล์นี้ → ใส่ URL/key เดิม → กด "ดึงจาก Cloud"</li>'+
     '</ol>'+
-    '<pre>create table if not exists dashboard_jobs (\n  id text primary key,\n  data jsonb not null,\n  updated_at timestamptz not null default now()\n);\n\nalter table dashboard_jobs enable row level security;\n\ndrop policy if exists "allow all" on dashboard_jobs;\ncreate policy "allow all" on dashboard_jobs\n  for all using (true) with check (true);</pre>'+
+    `<pre>-- ===== วาง SQL ทั้งชุดนี้ครั้งเดียว แล้วกด Run (ครบทุกตาราง+ฟังก์ชัน) =====
+
+-- 1) ตารางข้อมูลงาน
+create table if not exists dashboard_jobs (
+  id text primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table dashboard_jobs enable row level security;
+drop policy if exists "allow all" on dashboard_jobs;
+create policy "allow all" on dashboard_jobs
+  for all using (true) with check (true);
+
+-- 1b) กันข้อมูลเก่าเขียนทับข้อมูลใหม่ (data-loss guard)
+create or replace function guard_updated_at()
+returns trigger language plpgsql as $$
+begin
+  if NEW.updated_at < OLD.updated_at then return null; end if;
+  return NEW;
+end; $$;
+drop trigger if exists trg_guard_updated_at on dashboard_jobs;
+create trigger trg_guard_updated_at
+  before update on dashboard_jobs
+  for each row execute function guard_updated_at();
+
+-- 2) ระบบออกเลขที่งานกลาง (กันเลขซ้ำข้ามเครื่อง)
+create table if not exists job_counters (
+  prefix text primary key,
+  last   int  not null default 0
+);
+alter table job_counters enable row level security;
+create or replace function next_job_no(p_prefix text, p_floor int default 0)
+returns int language plpgsql security definer set search_path = public as $$
+declare v int;
+begin
+  insert into job_counters(prefix, last)
+  values (p_prefix, greatest(p_floor, 0))
+  on conflict (prefix) do update
+    set last = greatest(job_counters.last, excluded.last);
+  update job_counters set last = last + 1
+   where prefix = p_prefix returning last into v;
+  return v;
+end; $$;
+grant execute on function next_job_no(text, int) to anon, authenticated;
+
+-- 3) Version beacon (เตือนเครื่องที่เปิดหน้าเก่าค้าง)
+create table if not exists app_meta (k text primary key, v text);
+alter table app_meta enable row level security;
+create or replace function get_build()
+returns text language sql security definer set search_path = public as $$
+  select v from app_meta where k = 'build';
+$$;
+create or replace function set_build(p_build text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  insert into app_meta(k, v) values ('build', p_build)
+  on conflict (k) do update set v = greatest(app_meta.v, excluded.v);
+end; $$;
+grant execute on function get_build() to anon, authenticated;
+grant execute on function set_build(text) to anon, authenticated;</pre>`+
     '<p class="mini">หมายเหตุความปลอดภัย: นโยบายนี้เปิดให้ผู้ที่มี URL+key เข้าถึงข้อมูลได้ เหมาะกับการใช้ภายในทีม — หากต้องการจำกัดสิทธิ์เพิ่ม แจ้งได้ จะปรับให้รองรับ login</p>'+
     '</details>';
   h+='</div>';
@@ -2919,6 +3001,7 @@ document.addEventListener("click",e=>{
     const r=$("#lead-lostsel")?$("#lead-lostsel").value:"";
     if(!r){toast("เลือกเหตุผลก่อน — ข้อมูลนี้ใช้ปรับ marketing/ราคา","err");return;}
     l.stage="lost";l.lostReason=r;STATE.leadLostId=null;
+    leadCalCleanup(l);l.calendarEvent=null;   // D3: ปิดดีลไม่สำเร็จ → ลบ reminder follow-up ใน Calendar
     persistLead(l);toast("บันทึกแล้ว: ไม่ปิดดีล ("+r+")","ok");render();
   }
   else if(act==="lead-reopen"){const l=getLead(el.dataset.id);if(!l)return;l.stage="waiting";l.lostReason="";persistLead(l);toast("เปิด Lead กลับมาตามต่อแล้ว ✓","ok");render();}
@@ -3039,15 +3122,18 @@ document.addEventListener("click",e=>{
   else if(act==="attachrm"){formAttachments.splice(+el.dataset.i,1);paintAttachments();}
   else if(act==="calcreate"||act==="calupdate"){
     const j=getJob(STATE.editId);if(!j){toast("ต้องบันทึกงานก่อน","err");return;}
+    if(FORM_DIRTY){toast("มีข้อมูลในฟอร์มที่ยังไม่ได้บันทึก — กดบันทึกงานก่อน แล้วค่อยตั้ง/อัปเดตเตือน (D3)","err");return;}
     if(!j.travelDate){toast("งานนี้ยังไม่มีวันเดินทาง","err");return;}
     const inv=collectInviteEmails();
     (async()=>{
       try{
-        if(j.calendarEvent&&j.calendarEvent.id&&act==="calupdate"){try{await deleteCalendarEvent(j.calendarEvent.id);}catch(e){}}
+        const oldId=(act==="calupdate"&&j.calendarEvent&&j.calendarEvent.id)?j.calendarEvent.id:null;
         toast("กำลังสร้าง event ใน Google Calendar..."+(inv.length?(" + เชิญ "+inv.length+" คน"):""));
-        const ev=await createCalendarEvent(j,inv);
+        const ev=await createCalendarEvent(j,inv);   // D2: สร้างใหม่ก่อน — ถ้าพลาด event เดิมยังอยู่ ไม่เสีย reminder
         j.calendarEvent={id:ev.id,link:ev.htmlLink||"",createdAt:new Date().toISOString(),attendees:inv};
-        persistJob(j);paintCalendar();toast("ตั้งเตือนใน Calendar สำเร็จ ✓","ok");
+        persistJob(j);paintCalendar();
+        if(oldId&&oldId!==ev.id){try{await deleteCalendarEvent(oldId);}catch(e){}}  // ลบตัวเก่าหลังสร้างใหม่สำเร็จเท่านั้น
+        toast("ตั้งเตือนใน Calendar สำเร็จ ✓","ok");
       }catch(e){toast("ไม่สำเร็จ: "+(e&&e.message||e),"err");}
     })();
   }
@@ -3578,15 +3664,34 @@ function generatePDF(id){
 }
 
 /* ============================ INVOICE / RECEIPT ============================ */
-function nextInvNo(){
+/* ออกเลขกลางแบบ atomic ผ่าน Supabase (ใช้ counter ตัวเดียวกับเลขงาน) */
+async function cloudNextSeq(prefix,floor){
+  const base=(DB.cloud.url||"").trim().replace(/\/+$/,"").replace(/\/rest\/v1.*$/i,"");
+  const r=await fetch(base+"/rest/v1/rpc/next_job_no",{method:"POST",headers:cloudHeaders(),
+    body:JSON.stringify({p_prefix:prefix,p_floor:floor||0})});
+  if(!r.ok)throw new Error("RPC HTTP "+r.status);
+  return await r.json();
+}
+/* B1: เลข Invoice/Receipt ออกผ่าน RPC กลางเมื่อต่อ cloud (กันเลขซ้ำข้ามเครื่อง) — ออฟไลน์ค่อย fallback เป็น local */
+async function nextInvNo(){
   const d=new Date();const ym=d.getFullYear()+String(d.getMonth()+1).padStart(2,"0");
   if(!DB.invSeq)DB.invSeq={};
+  if(DB.cloud.enabled){
+    try{const seq=await cloudNextSeq("INV-"+ym+"-",DB.invSeq[ym]||0);
+      DB.invSeq[ym]=Math.max(DB.invSeq[ym]||0,seq);saveLocal();
+      return "INV-"+ym+"-"+String(seq).padStart(4,"0");}catch(e){/* fallback local */}
+  }
   const seq=(DB.invSeq[ym]||0)+1;DB.invSeq[ym]=seq;saveLocal();
   return "INV-"+ym+"-"+String(seq).padStart(4,"0");
 }
-function nextRcpNo(){
+async function nextRcpNo(){
   const d=new Date();const ym=d.getFullYear()+String(d.getMonth()+1).padStart(2,"0");
   if(!DB.rcpSeq)DB.rcpSeq={};
+  if(DB.cloud.enabled){
+    try{const seq=await cloudNextSeq("RCP-"+ym+"-",DB.rcpSeq[ym]||0);
+      DB.rcpSeq[ym]=Math.max(DB.rcpSeq[ym]||0,seq);saveLocal();
+      return "RCP-"+ym+"-"+String(seq).padStart(4,"0");}catch(e){/* fallback local */}
+  }
   const seq=(DB.rcpSeq[ym]||0)+1;DB.rcpSeq[ym]=seq;saveLocal();
   return "RCP-"+ym+"-"+String(seq).padStart(4,"0");
 }
@@ -3691,21 +3796,42 @@ function buildDocHTML(j,kind){
   /* kind: "invoice" | "receipt" — match Convey existing template format */
   const co=Object.assign({},DEFAULT_COMPANY,DB.company||{});
   const isReceipt=kind==="receipt";
+  const docNo=isReceipt?(j.receipt&&j.receipt.no||"-"):(j.invoice&&j.invoice.no||"-");
+  const issuedAt=isReceipt?(j.receipt&&j.receipt.issuedAt||new Date().toISOString()):(j.invoice&&j.invoice.issuedAt||new Date().toISOString());
+  /* B2: ถ้ามี snapshot (เก็บตอนออกเอกสาร) → ใช้ค่าที่ snapshot ไว้ แก้งานทีหลังไม่กระทบเอกสารที่ออกแล้ว
+     ไม่มี snapshot (เอกสารเก่า) → อ่านค่าปัจจุบันเหมือนเดิม (backward compatible) */
+  const snap=(isReceipt?(j.receipt&&j.receipt.snap):(j.invoice&&j.invoice.snap))||null;
+  const S={
+    sellPrice: snap?Number(snap.sellPrice)||0:(Number(j.sellPrice)||0),
+    qty: snap?(Number(snap.qty)||1):(Number(j.invoiceQty)||1),
+    cur: snap?(snap.cur||"THB"):(j.invoiceCurrency||"THB"),
+    vatMode: snap?(snap.vatMode||"none"):(co.vatMode||"none"),
+    vatRate: snap?(Number(snap.vatRate)||0):(Number(co.vatRate)||0),
+    advItems: snap?(Array.isArray(snap.advItems)?snap.advItems:[]):((j.costs||[]).filter(c=>c.adv&&(Number(c.amount)||0)>0).map(c=>({cat:c.cat,note:c.note,amount:Number(c.amount)||0}))),
+    custName: snap?(snap.custName||""):(j.customerName||""),
+    custBranch: snap?(snap.custBranch||""):(j.customerBranch||""),
+    custAddress: snap?(snap.custAddress||""):(j.customerAddress||""),
+    custTaxId: snap?(snap.custTaxId||""):(j.customerTaxId||""),
+    custPhone: snap?(snap.custPhone||""):(j.customerPhone||""),
+    title: snap?(snap.title||""):((j.invoiceTitle||"").trim()||autoInvoiceTitle(j)),
+    desc: snap?(snap.desc||""):((j.invoiceDescription!=null&&j.invoiceDescription!=="")?j.invoiceDescription:autoInvoiceDescription(j)),
+    reference: snap?(snap.reference||""):((j.invoiceReference||"").trim()),
+    paymentMethod: snap?(snap.paymentMethod||"โอนเงิน / Bank Transfer"):(j.invoicePaymentMethod||"โอนเงิน / Bank Transfer"),
+    payDate: isReceipt?((snap&&snap.payDate)?snap.payDate:(j.paidDate||(issuedAt?issuedAt.slice(0,10):""))):""
+  };
   const status=isReceipt?"(ISSUED)":((j.invoice&&j.invoice.no)?"(ISSUED)":"(Draft)");
   const docColor=isReceipt?"#10b981":"#1d4ed8";
   const docTitle=isReceipt?"Receipt":"Invoice";
-  const hasVat=(co.vatMode==="inclusive"||co.vatMode==="exclusive")&&Number(co.vatRate)>0;
+  const hasVat=(S.vatMode==="inclusive"||S.vatMode==="exclusive")&&Number(S.vatRate)>0;
   const docSub=isReceipt?(hasVat?"ใบเสร็จรับเงิน / ใบกำกับภาษี":"ใบเสร็จรับเงิน"):"ใบแจ้งหนี้ / ใบเรียกเก็บเงิน";
-  const docNo=isReceipt?(j.receipt&&j.receipt.no||"-"):(j.invoice&&j.invoice.no||"-");
-  const issuedAt=isReceipt?(j.receipt&&j.receipt.issuedAt||new Date().toISOString()):(j.invoice&&j.invoice.issuedAt||new Date().toISOString());
-  const cur=j.invoiceCurrency||"THB";
-  const qty=Number(j.invoiceQty)||1;
-  const unitPrice=Number(j.sellPrice)||0;
+  const cur=S.cur;
+  const qty=S.qty;
+  const unitPrice=S.sellPrice;
   const subtotal=unitPrice*qty;
   /* VAT calc — แยก "จ่ายแทนลูกค้า" (adv) ออกจากฐาน VAT */
-  const vatMode=co.vatMode||"none";const vatRate=Number(co.vatRate)||0;
+  const vatMode=S.vatMode;const vatRate=S.vatRate;
   const money2=n=>(Number(n)||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})+" ฿";
-  const advItems=(vatMode!=="none"&&vatRate>0)?(j.costs||[]).filter(c=>c.adv&&(Number(c.amount)||0)>0):[];
+  const advItems=(vatMode!=="none"&&vatRate>0)?S.advItems:[];
   let advTotal=0;advItems.forEach(c=>advTotal+=Number(c.amount)||0);
   if(advTotal>subtotal)advTotal=subtotal;
   const svcAmt=subtotal-advTotal; /* ส่วนค่าบริการ */
@@ -3717,11 +3843,11 @@ function buildDocHTML(j,kind){
   /* amount in words */
   const amtWords=cur==="THB"?bahtText(grandTotal):(numberToWordsEn(grandTotal)+(grandTotal>=1?" "+cur:""));
   /* description */
-  const invTitle=(j.invoiceTitle||"").trim()||autoInvoiceTitle(j);
-  const invDesc=(j.invoiceDescription!=null&&j.invoiceDescription!=="")?j.invoiceDescription:autoInvoiceDescription(j);
-  const reference=(j.invoiceReference||"").trim();
-  const paymentMethod=j.invoicePaymentMethod||"โอนเงิน / Bank Transfer";
-  const payDate=isReceipt?(j.paidDate||(issuedAt?issuedAt.slice(0,10):"")):"";
+  const invTitle=S.title;
+  const invDesc=S.desc;
+  const reference=S.reference;
+  const paymentMethod=S.paymentMethod;
+  const payDate=S.payDate;
   /* contact info */
   const coContacts=[];if(co.phone)coContacts.push("☎ "+co.phone);if(co.email)coContacts.push("✉ "+co.email);
   const css=`
@@ -3792,16 +3918,16 @@ function buildDocHTML(j,kind){
   sellerHtml+=pair("Tax No. :",esc(co.taxId||"-")+(co.branch?(' <span style="color:#64748b">('+esc(co.branch)+')</span>'):""));
   if(coContacts.length)sellerHtml+=pair("",coContacts.map(c=>esc(c)).join("&nbsp;&nbsp;"));
   if(co.website)sellerHtml+=pair("",'🌐 '+esc(co.website));
-  /* Customer column */
-  const custNameHtml='<b>'+esc(j.customerName||"-")+'</b>';
-  const custBranch=j.customerBranch?j.customerBranch:"";
-  const custAddrHtml=j.customerAddress?esc(j.customerAddress).replace(/\n/g,"<br>"):"-";
-  const contactBits=[];if(j.customerName)contactBits.push("👤 "+esc(j.customerName));if(j.customerPhone)contactBits.push("📞 "+esc(j.customerPhone));
+  /* Customer column — อ่านจาก S (snapshot-aware, B2) */
+  const custNameHtml='<b>'+esc(S.custName||"-")+'</b>';
+  const custBranch=S.custBranch?S.custBranch:"";
+  const custAddrHtml=S.custAddress?esc(S.custAddress).replace(/\n/g,"<br>"):"-";
+  const contactBits=[];if(S.custName)contactBits.push("👤 "+esc(S.custName));if(S.custPhone)contactBits.push("📞 "+esc(S.custPhone));
   let custHtml="";
   custHtml+=pair("Customer :",custNameHtml);
   if(custBranch)custHtml+=pair("Branch :",esc(custBranch));
   custHtml+=pair("Address :",custAddrHtml);
-  custHtml+=pair("Tax No. :",esc(j.customerTaxId||"-"));
+  custHtml+=pair("Tax No. :",esc(S.custTaxId||"-"));
   custHtml+=pair("Contact :",contactBits.join("<br>"));
   /* Doc info column */
   let docInfoHtml='<div class="doc-id">';
@@ -3893,27 +4019,50 @@ function buildDocHTML(j,kind){
   /* Signatures */
   html+='<div class="sig">'+
     '<div class="b"><div class="role">Approved by (Seller)</div><div class="name">'+esc(co.authorizedSigner||"")+'</div><div class="dt">'+esc(fmtDocDate(issuedAt))+'</div></div>'+
-    '<div class="b"><div class="role">Approved by (Customer)</div><div class="name">'+esc(j.customerName||"")+'</div></div>'+
+    '<div class="b"><div class="role">Approved by (Customer)</div><div class="name">'+esc(S.custName||"")+'</div></div>'+
     '</div>';
   html+='</body></html>';
   return html;
 }
-function generateInvoice(id){
+/* B2: เก็บ snapshot ค่าที่ออกบิล ณ เวลาที่ออกเอกสาร — แก้งานทีหลังไม่กระทบเอกสารที่ออกแล้ว */
+function buildBillingSnapshot(j,isReceipt){
+  const co=Object.assign({},DEFAULT_COMPANY,DB.company||{});
+  const snap={
+    sellPrice:Number(j.sellPrice)||0,
+    qty:Number(j.invoiceQty)||1,
+    cur:j.invoiceCurrency||"THB",
+    vatMode:co.vatMode||"none",
+    vatRate:Number(co.vatRate)||0,
+    advItems:(j.costs||[]).filter(c=>c.adv&&(Number(c.amount)||0)>0).map(c=>({cat:c.cat,note:c.note,amount:Number(c.amount)||0})),
+    custName:j.customerName||"",custBranch:j.customerBranch||"",custAddress:j.customerAddress||"",custTaxId:j.customerTaxId||"",custPhone:j.customerPhone||"",
+    title:(j.invoiceTitle||"").trim()||autoInvoiceTitle(j),
+    desc:(j.invoiceDescription!=null&&j.invoiceDescription!=="")?j.invoiceDescription:autoInvoiceDescription(j),
+    reference:(j.invoiceReference||"").trim(),
+    paymentMethod:j.invoicePaymentMethod||"โอนเงิน / Bank Transfer",
+    snappedAt:new Date().toISOString()
+  };
+  if(isReceipt)snap.payDate=j.paidDate||new Date().toISOString().slice(0,10);
+  return snap;
+}
+async function generateInvoice(id){
   const j=getJob(id);
   if(!j){toast("ไม่พบข้อมูลงาน","err");return;}
   if(!j.sellPrice||Number(j.sellPrice)<=0){toast("ยังไม่ได้ใส่ราคาขายลูกค้า — กรอกราคาก่อนออก Invoice","err");return;}
   const co=DB.company||DEFAULT_COMPANY;
   if(!co.taxId||!co.address){if(!confirm("ยังไม่ได้กรอกข้อมูลบริษัท (เลขผู้เสียภาษี/ที่อยู่) ในหน้าตั้งค่า — ดำเนินการต่อหรือไม่?"))return;}
-  if(!j.invoice||!j.invoice.no){
-    j.invoice={no:nextInvNo(),issuedAt:new Date().toISOString()};
-    persistJob(j);
-  }
-  const w=window.open("","_blank");
+  const w=window.open("","_blank");   // เปิดหน้าต่างก่อน (ต้องอยู่ใน user gesture ก่อน await)
   if(!w){toast("เบราว์เซอร์บล็อก pop-up — กรุณาอนุญาต pop-up","err");return;}
-  w.document.write(buildDocHTML(j,"invoice"));w.document.close();
-  toast("เปิด Invoice "+j.invoice.no+" แล้ว ✓","ok");
+  try{
+    if(!j.invoice||!j.invoice.no){
+      const no=await nextInvNo();
+      j.invoice={no:no,issuedAt:new Date().toISOString(),snap:buildBillingSnapshot(j,false)};
+      persistJob(j);
+    }
+    w.document.write(buildDocHTML(j,"invoice"));w.document.close();
+    toast("เปิด Invoice "+j.invoice.no+" แล้ว ✓","ok");
+  }catch(e){try{w.close();}catch(_){}toast("ออก Invoice ไม่สำเร็จ: "+(e&&e.message||e),"err");}
 }
-function generateReceipt(id){
+async function generateReceipt(id){
   const j=getJob(id);
   if(!j){toast("ไม่พบข้อมูลงาน","err");return;}
   if(!j.paid){toast("ยังไม่ได้ mark Paid — เปลี่ยนสถานะการเงินก่อน","err");return;}
@@ -3922,14 +4071,17 @@ function generateReceipt(id){
   if(!co.taxId||!co.address){if(!confirm("ยังไม่ได้กรอกข้อมูลบริษัทในหน้าตั้งค่า — ดำเนินการต่อหรือไม่?"))return;}
   const rcpHasVat=(co.vatMode==="inclusive"||co.vatMode==="exclusive")&&Number(co.vatRate)>0;
   if(rcpHasVat&&!j.customerAddress){if(!confirm("เอกสารนี้เป็นใบเสร็จรับเงิน/ใบกำกับภาษี — ควรมีที่อยู่ลูกค้า (ยังไม่ได้กรอก) ดำเนินการต่อหรือไม่?"))return;}
-  if(!j.receipt||!j.receipt.no){
-    j.receipt={no:nextRcpNo(),issuedAt:new Date().toISOString()};
-    persistJob(j);
-  }
   const w=window.open("","_blank");
   if(!w){toast("เบราว์เซอร์บล็อก pop-up — กรุณาอนุญาต pop-up","err");return;}
-  w.document.write(buildDocHTML(j,"receipt"));w.document.close();
-  toast("เปิด Receipt "+j.receipt.no+" แล้ว ✓","ok");
+  try{
+    if(!j.receipt||!j.receipt.no){
+      const no=await nextRcpNo();
+      j.receipt={no:no,issuedAt:new Date().toISOString(),snap:buildBillingSnapshot(j,true)};
+      persistJob(j);
+    }
+    w.document.write(buildDocHTML(j,"receipt"));w.document.close();
+    toast("เปิด Receipt "+j.receipt.no+" แล้ว ✓","ok");
+  }catch(e){try{w.close();}catch(_){}toast("ออก Receipt ไม่สำเร็จ: "+(e&&e.message||e),"err");}
 }
 
 /* ============================ INIT ============================ */

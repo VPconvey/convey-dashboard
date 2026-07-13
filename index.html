@@ -85,6 +85,10 @@ main{flex:1;min-width:0;display:flex;flex-direction:column;}
 .jc-id{min-width:190px;}
 .jc-id b{color:var(--brand-d);}
 .jc-next{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;white-space:nowrap;}
+.jc-remark{background:#fffbeb;color:#92400e;border:1px solid #fde68a;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;transition:.12s;}
+.jc-remark:hover{background:#fef3c7;border-color:#fbbf24;}
+.jc-remark.empty{background:transparent;color:var(--mut);border:1px dashed #cbd5e1;font-weight:500;opacity:.75;}
+.jc-remark.empty:hover{opacity:1;border-color:#94a3b8;background:#f8fafc;}
 .jc-actions{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
 .jcard-foot{padding:0 14px 11px 38px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
 .jcard-foot .pwrap{flex:1;min-width:160px;}
@@ -1991,6 +1995,10 @@ function jobCardHTML(j){
   h+='<span class="urgent-countdown '+(closed?"ok":cls)+'">'+(closed?"ปิดจ๊อบแล้ว ✓":esc(label))+'</span>';
   if(d)h+='<span class="mini">'+fmtCE(j.travelDate)+'</span>';
   if(ns)h+='<span class="jc-next">ถัดไป: '+esc(ns.label)+'</span>';
+  {const rmk=(j.notes||"").trim();
+   h+=rmk
+     ?'<span class="jc-remark" data-act="remark" data-id="'+j.id+'" title="'+esc(rmk)+' — คลิกเพื่อแก้ไข">📝 '+esc(rmk)+'</span>'
+     :'<span class="jc-remark empty" data-act="remark" data-id="'+j.id+'" title="เพิ่มหมายเหตุ">＋ หมายเหตุ</span>';}
   h+='<div class="jc-actions">'+
      '<button class="btn sm" data-act="paid" data-id="'+j.id+'">'+
        (j.paid?'<span class="badge bg-paid">จ่ายแล้ว ✓</span>':'<span class="badge bg-unpaid">💰 เก็บค่าใช้จ่าย</span>')+'</button>'+
@@ -2859,6 +2867,13 @@ document.addEventListener("click",e=>{
       j.paid=false;j.paidDate="";
     }
     persistJob(j);toast(j.paid?"บันทึก: รับเงินแล้ว ✓":"กลับเป็นค้างจ่าย");render();
+  }
+  else if(act==="remark"){const j=getJob(el.dataset.id);if(!j)return;
+    const cur=(j.notes||"").trim();
+    const v=prompt("หมายเหตุงาน "+(j.jobNo||"")+" (เว้นว่างเพื่อลบ)",cur);
+    if(v===null)return; /* cancelled */
+    j.notes=v.trim();
+    persistJob(j);toast(j.notes?"บันทึกหมายเหตุแล้ว ✓":"ลบหมายเหตุแล้ว");render();
   }
   else if(act==="edit"){if(!confirmLeaveForm())return;STATE.editId=el.dataset.id;STATE.dupFrom=null;STATE.view="new";render();window.scrollTo(0,0);}
   else if(act==="dup"){if(!confirmLeaveForm())return;STATE.editId=null;STATE.dupFrom=el.dataset.id;STATE.view="new";STATE.filters={};render();window.scrollTo(0,0);}

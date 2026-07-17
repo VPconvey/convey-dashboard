@@ -355,7 +355,7 @@ a{color:var(--brand-d);}
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 "use strict";
-const BUILD_VERSION="2026-07-11b"; // อัปเดตทุกครั้งที่ deploy — ใช้เตือนเครื่องที่เปิดหน้าเก่าค้าง
+const BUILD_VERSION="2026-07-17a"; // อัปเดตทุกครั้งที่ deploy — ใช้เตือนเครื่องที่เปิดหน้าเก่าค้าง
 /* ============================ LEADS CONFIG ============================ */
 const LEAD_STAGES={
   new:{label:"ทักมาใหม่",icon:"🆕",color:"#2563eb"},
@@ -536,7 +536,7 @@ function loadLocal(){
   catch(e){console.warn("load error",e);}
   // safety: เผื่อมี tombstone หลุดเข้ามาใน jobs (จาก cloud เก่า) → เอาออก + จดทะเบียนไว้
   DB.tombstones=DB.tombstones||{};
-  DB.ui=Object.assign({jobView:"card"},DB.ui||{});
+  DB.ui=Object.assign({jobView:"card",dashView:"card"},DB.ui||{});
   DB.jobs=DB.jobs.filter(j=>{if(j&&j._deleted){DB.tombstones[j.id]=j._deletedAt||j.updatedAt||new Date().toISOString();return false;}return true;});
   DB.jobs.forEach(migrateJobPets);
   DB.jobNoHigh=DB.jobNoHigh||{};
@@ -1336,10 +1336,26 @@ function renderDashboard(){
   h+='</div>';
 
   let list=applyFilters(jobs,f);
-  list.sort((a,b)=>(b.travelDate||"").localeCompare(a.travelDate||""));
 
   if(!list.length){h+='<div class="empty"><div class="big">📭</div>ยังไม่มีงานที่ตรงกับเงื่อนไข<br><button class="btn primary" style="margin-top:12px" data-act="nav" data-view="new">+ บันทึกงานใหม่</button></div>';}
   else{
+    const mode=(DB.ui&&DB.ui.dashView)||"card";
+    h+='<div class="viewtog">'+
+       '<button class="btn sm'+(mode==="card"?" primary":"")+'" data-act="dashview" data-mode="card">🗂 การ์ด</button>'+
+       '<button class="btn sm'+(mode==="table"?" primary":"")+'" data-act="dashview" data-mode="table">📊 ตาราง</button>'+
+       '<span class="mini" style="margin-left:auto">แสดง '+list.length+' จาก '+jobs.length+' งาน</span></div>';
+    if(mode==="card"){
+      h+='<div class="hint">💡 คลิกการ์ดเพื่อกางดู checklist — ติ๊กเอกสาร/ขั้นตอน ใส่วันที่ แก้การเงิน เพิ่มหมายเหตุได้เลยจากหน้านี้ • งานเรียงตามวันเดินทางใกล้สุดก่อน ปิดจ๊อบแล้วอยู่ล่าง</div>';
+      list.sort((a,b)=>{
+        const ac=isClosed(a)?1:0,bc=isClosed(b)?1:0;
+        if(ac!==bc)return ac-bc;
+        return (a.travelDate||"9999").localeCompare(b.travelDate||"9999");
+      });
+      list.forEach(j=>{h+=jobCardHTML(j,true);});
+      $("#content").innerHTML=h;
+      return;
+    }
+    list.sort((a,b)=>(b.travelDate||"").localeCompare(a.travelDate||""));
     h+='<div class="tbl-wrap"><table><thead><tr>'+
       '<th>เลขที่งาน</th><th>ประเภทงาน</th><th>ลูกค้า</th><th>สัตว์เลี้ยง</th><th>เส้นทาง</th><th>'+(f.f_datefield==="record"?"วันที่บันทึก":"วันเดินทาง")+'</th>'+
       '<th>ความคืบหน้า</th><th>วัคซีน</th><th>เงิน</th><th>สถานะ</th><th></th></tr></thead><tbody>';
@@ -1997,7 +2013,7 @@ function updateJcFin(j){
   const sum=card.querySelector('[data-finsum]');
   if(sum)sum.innerHTML=strip||'<span class="mini">กรอกราคาขาย/ต้นทุน — ระบบคำนวณกำไรให้อัตโนมัติ (บันทึกทันทีที่พิมพ์เสร็จ)</span>';
 }
-function jobCardHTML(j){
+function jobCardHTML(j,showType){
   const t=JOB_TYPES[j.jobType]||{icon:"📋",label:j.jobType||"?"};
   const p=progressOf(j);
   const closed=isClosed(j);
@@ -2017,6 +2033,7 @@ function jobCardHTML(j){
   h+='<div class="jcard-head" data-act="expand" data-id="'+j.id+'">';
   h+='<span class="jc-caret">'+(exp?"▼":"▶")+'</span>';
   h+='<div class="jc-id"><b>'+esc(j.jobNo||"-")+'</b>'+
+     (showType?' <span class="badge bg-type" style="margin-left:4px;font-size:11px">'+t.icon+" "+esc(t.label)+'</span>':'')+
      '<div class="mini"><b>'+esc(j.customerName||"-")+'</b> • 🐾 '+esc(petsShort(j))+' • '+esc(j.originCountry||"?")+'→'+esc(j.destCountry||"?")+'</div>'+
      (j.assignee?'<div class="mini" style="color:var(--brand-d);font-weight:600">👤 '+esc(j.assignee)+'</div>':"")+'</div>';
   h+='<span class="urgent-countdown '+(closed?"ok":cls)+'">'+(closed?"ปิดจ๊อบแล้ว ✓":esc(label))+'</span>';
@@ -3039,6 +3056,7 @@ document.addEventListener("click",e=>{
   }
   else if(act==="del"){softDeleteJob(el.dataset.id);}
   else if(act==="jobview"){DB.ui=DB.ui||{};DB.ui.jobView=el.dataset.mode;saveLocal();render();}
+  else if(act==="dashview"){DB.ui=DB.ui||{};DB.ui.dashView=el.dataset.mode;saveLocal();render();}
   else if(act==="expand"){
     STATE.expanded=STATE.expanded||{};
     STATE.expanded[el.dataset.id]=!STATE.expanded[el.dataset.id];
